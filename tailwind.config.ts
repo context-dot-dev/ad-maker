@@ -9,38 +9,69 @@ export default {
         mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "monospace"],
       },
       colors: {
-        // Context.dev indigo/blue
-        brand: {
-          50:  "#eef1ff",
-          100: "#e0e5ff",
-          200: "#c6ccff",
-          300: "#a3aaff",
-          400: "#7c82fb",
-          500: "#5b5bf0",
-          600: "#4b46e5",
-          700: "#3d37c9",
-          800: "#332fa1",
-          900: "#2c2b7f",
-          950: "#1a184a",
+        // Semantic tokens (driven by CSS vars — dark theme)
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        border: "hsl(var(--border))",
+        card: "hsl(var(--card))",
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
         },
-        // light indigo band background
-        band: "#eef0fc",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "#ffffff",
+        },
+        // Brand palette
+        brand: {
+          blue: "#0469ff",
+          purple: "#7000ff",
+          washed: "#b5b2ff",
+          washedBlue: "#6889ff",
+          dark: "#030014",
+        },
         ink: "#0b0b12",
       },
+      opacity: {
+        12: "0.12",
+        15: "0.15",
+      },
       boxShadow: {
-        xs:   "0 1px 2px rgba(10,10,18,0.04)",
-        card: "0 1px 2px rgba(10,10,18,0.04), 0 1px 3px rgba(10,10,18,0.06)",
-        soft: "0 4px 24px -12px rgba(20,20,50,0.12)",
-        ad:   "0 20px 50px -24px rgba(30,27,75,0.55)",
+        xs:   "0 1px 2px rgba(0,0,0,0.3)",
+        card: "0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5)",
+        soft: "0 8px 40px -16px rgba(99,102,241,0.35)",
+        ad:   "0 24px 60px -24px rgba(0,0,0,0.7)",
+        glow: "0 10px 40px -10px rgba(99,102,241,0.6)",
+        notif: "0 0 0 1px rgba(255,255,255,0.06), 0 12px 32px -12px rgba(0,0,0,0.7)",
       },
       keyframes: {
         fadeUp: {
-          "0%":   { opacity: "0", transform: "translateY(12px)" },
+          "0%":   { opacity: "0", transform: "translateY(16px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        marquee: {
+          "0%":   { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        float: {
+          "0%,100%": { transform: "translateY(0)" },
+          "50%":     { transform: "translateY(-12px)" },
+        },
+        blob: {
+          "0%,100%": { transform: "translate(0,0) scale(1)" },
+          "33%":     { transform: "translate(24px,-32px) scale(1.1)" },
+          "66%":     { transform: "translate(-20px,18px) scale(0.94)" },
+        },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
         },
       },
       animation: {
-        "fade-up": "fadeUp 0.4s ease forwards",
+        "fade-up": "fadeUp 0.6s cubic-bezier(0.21,1.02,0.73,1) both",
+        marquee: "marquee 36s linear infinite",
+        float: "float 6s ease-in-out infinite",
+        blob: "blob 16s ease-in-out infinite",
+        shimmer: "shimmer 2.2s ease-in-out infinite",
       },
     },
   },

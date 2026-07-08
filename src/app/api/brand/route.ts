@@ -22,15 +22,21 @@ export async function POST(req: Request) {
   const { url } = parsed.data;
   const domain = parseDomain(url);
 
-  const [brand, markdown] = await Promise.allSettled([
+  const [brandResult, pageResult] = await Promise.allSettled([
     fetchBrand(domain),
     scrapePage(url),
   ]);
 
+  if (brandResult.status === "rejected") {
+    return NextResponse.json(
+      { error: "Couldn't load brand data for that domain. Try another URL." },
+      { status: 502 },
+    );
+  }
+
   return NextResponse.json({
-    domain,
-    brand: brand.status === "fulfilled" ? brand.value : null,
-    pageMarkdown: markdown.status === "fulfilled" ? markdown.value : "",
-    error: brand.status === "rejected" ? String(brand.reason) : null,
+    brand: brandResult.value,
+    pageMarkdown: pageResult.status === "fulfilled" ? pageResult.value : "",
+    error: null,
   });
 }

@@ -8,6 +8,15 @@
 @layer base {
   :root {
     --font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss03";
+    /* Dark theme tokens */
+    --background: 249 100% 3.9%;   /* deep near-black purple */
+    --foreground: 248 100% 92%;    /* soft lavender white */
+    --card: 250 40% 7%;
+    --border: 246 22% 16%;
+    --muted: 246 24% 12%;
+    --muted-foreground: 247 16% 62%;
+    --primary: 266 100% 50%;       /* #7000ff */
+    --ring: 266 100% 50%;
   }
   html {
     -webkit-font-smoothing: antialiased;
@@ -17,34 +26,72 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    @apply bg-white text-neutral-900;
+    @apply text-foreground;
+    background-color: hsl(var(--background));
   }
   :focus-visible {
-    outline-color: theme("colors.brand.500");
+    outline-color: hsl(var(--primary));
   }
   ::selection {
-    background: theme("colors.brand.100");
-    color: theme("colors.brand.900");
+    background: hsl(var(--primary));
+    color: #fff;
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  /* Solid primary with soft purple glow */
+  .btn-primary {
+    @apply btn bg-primary px-5 py-2.5 text-white shadow-[0_14px_44px_-14px_hsl(266_100%_50%/0.85)] hover:bg-[#6600e8];
   }
   .btn-dark {
-    @apply btn bg-neutral-900 text-white hover:bg-neutral-800 px-4 py-2.5;
+    @apply btn bg-primary px-4 py-2.5 text-white shadow-[0_14px_44px_-14px_hsl(266_100%_50%/0.85)] hover:bg-[#6600e8];
   }
+  .btn-gradient {
+    @apply btn bg-primary px-5 py-2.5 text-white shadow-[0_14px_44px_-14px_hsl(266_100%_50%/0.85)] hover:bg-[#6600e8];
+  }
+  /* Dark card-style secondary button (gradient border look) */
   .btn-secondary {
-    @apply btn bg-white text-neutral-800 px-4 py-2.5 ring-1 ring-neutral-900/10 hover:bg-neutral-50;
+    @apply btn border border-border bg-gradient-to-b from-[#1a1830] to-[#100e1c] px-4 py-2.5 text-foreground hover:border-primary;
   }
   .input {
-    @apply block w-full rounded-lg bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 ring-1 ring-neutral-900/10 focus:ring-2 focus:ring-brand-500 focus:outline-none transition;
+    @apply block w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition;
+  }
+  .card {
+    @apply rounded-xl border border-border bg-card;
   }
   .section-title {
-    @apply text-center text-2xl font-semibold tracking-tight text-neutral-900;
+    @apply text-center text-2xl font-semibold tracking-tight text-foreground;
   }
   .section-sub {
-    @apply mt-1.5 text-center text-sm text-neutral-500;
+    @apply mt-1.5 text-center text-sm text-muted-foreground;
+  }
+
+  /* Gradient-bordered pill (badge) — blue → purple, inner dark */
+  .pill-gradient {
+    @apply relative inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-blue to-brand-purple p-px text-xs font-medium;
+  }
+  .pill-gradient > span {
+    @apply inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-muted-foreground;
+  }
+  /* Accent gradient (blue → purple) for a highlighted word */
+  .text-accent-gradient {
+    @apply bg-gradient-to-r from-brand-washedBlue via-brand-washed to-brand-purple bg-clip-text text-transparent;
+  }
+  /* Metallic light headline */
+  .text-gradient {
+    @apply bg-gradient-to-b from-white via-white to-brand-washed/60 bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .pause-on-hover:hover * {
+    animation-play-state: paused;
   }
 }
