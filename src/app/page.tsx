@@ -26,18 +26,22 @@ type BrandAssets = {
 type Ad = { headline: string; highlight: string; body: string; cta: string };
 type Variant = "primary" | "dark" | "light";
 
-type FormatId = "x_banner" | "li_post" | "li_banner" | "ad_16_9" | "custom";
+type FormatId = "x_banner" | "li_post" | "li_banner" | "ad_16_9";
 type StyleId = "clean" | "bold" | "minimal" | "playful" | "elegant";
+type Result = { format: FormatId; url: string };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const FORMATS: { id: FormatId; label: string; dims: string; ratio: number; w: number; h: number; icon: React.ReactNode }[] = [
-  { id: "x_banner",  label: "X (Twitter) Banner", dims: "1500 × 500",  ratio: 3 / 1,      w: 1500, h: 500,  icon: <XIcon /> },
-  { id: "li_post",   label: "LinkedIn Post",      dims: "1200 × 1200", ratio: 1,          w: 1200, h: 1200, icon: <LinkedInIcon /> },
-  { id: "li_banner", label: "LinkedIn Banner",    dims: "1584 × 396",  ratio: 1584 / 396, w: 1584, h: 396,  icon: <ImageIcon /> },
-  { id: "ad_16_9",   label: "Ad Image (16:9)",    dims: "1200 × 675",  ratio: 16 / 9,     w: 1200, h: 675,  icon: <ImageIcon /> },
-  { id: "custom",    label: "Landscape Ad",       dims: "1600 × 900",  ratio: 16 / 9,     w: 1600, h: 900,  icon: <FrameIcon /> },
+  { id: "x_banner",  label: "X Banner",        dims: "1500 × 500",  ratio: 3 / 1,      w: 1500, h: 500,  icon: <XIcon /> },
+  { id: "li_post",   label: "LinkedIn Post",   dims: "1200 × 1200", ratio: 1,          w: 1200, h: 1200, icon: <LinkedInIcon /> },
+  { id: "li_banner", label: "LinkedIn Banner", dims: "1584 × 396",  ratio: 1584 / 396, w: 1584, h: 396,  icon: <ImageIcon /> },
+  { id: "ad_16_9",   label: "Ad · 16:9",       dims: "1200 × 675",  ratio: 16 / 9,     w: 1200, h: 675,  icon: <ImageIcon /> },
 ];
+
+// gpt-image-1 renders square for posts and 3:2 for everything else.
+const genRatioFor = (f: FormatId) => (f === "li_post" ? 1 : 1536 / 1024);
+const formatMeta = (f: FormatId) => FORMATS.find((x) => x.id === f)!;
 
 const STYLES: { id: StyleId; label: string }[] = [
   { id: "clean", label: "Clean" },
@@ -253,20 +257,27 @@ export default function Page() {
   const [brand, setBrand] = useState<BrandAssets | null>(null);
   const [pageMarkdown, setPageMarkdown] = useState("");
 
-  const [format, setFormat] = useState<FormatId>("x_banner");
+  const [selectedFormats, setSelectedFormats] = useState<FormatId[]>(["x_banner", "li_post", "ad_16_9"]);
   const [mainMessage, setMainMessage] = useState("");
   const [subMessage, setSubMessage] = useState("");
   const [style, setStyle] = useState<StyleId>("clean");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [ctaOverride, setCtaOverride] = useState("");
 
-  const [results, setResults] = useState<string[]>([]);
+  const [results, setResults] = useState<Result[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<Set<number>>(new Set());
+  const [chosen, setChosen] = useState<Set<number>>(new Set());
 
-  const activeFormat = FORMATS.find((f) => f.id === format)!;
   const activeBrand = brand ?? DEMO_BRAND;
+  // Canonical order for generation + loading skeletons.
+  const orderedFormats = FORMATS.filter((f) => selectedFormats.includes(f.id));
+
+  function toggleFormat(id: FormatId) {
+    setSelectedFormats((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 3 ? prev : [...prev, id],
+    );
+  }
 
   // ── fetch brand ──
   const loadBrand = useCallback(async (rawUrl: string) => {
@@ -286,12 +297,15 @@ export default function Page() {
     finally { setLoadingBrand(false); }
   }, []);
 
-  // ── generate real ad images ──
-  const generate = useCallback(async (append = false) => {
+  // ── generate real ad images (one per selected format) ──
+  const generate = useCallback(async () => {
     const b = brand ?? DEMO_BRAND;
+    const formats = FORMATS.filter((f) => selectedFormats.includes(f.id)).map((f) => f.id);
+    if (formats.length === 0) return;
     setGenError(null);
     setIsGenerating(true);
-    if (!append) { setResults([]); setSaved(new Set()); }
+    setResults([]);
+    setChosen(new Set());
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -300,36 +314,38 @@ export default function Page() {
           domain: b.domain,
           brandName: b.name ?? b.domain,
           description: b.description ?? b.slogan ?? "",
-          colors: b.colors.map((c) => c.hex).slice(0, 4),
-          mainMessage, subMessage, ctaOverride, style, format, count: 3,
+          pageContext: pageMarkdown.slice(0, 1800),
+          colors: b.colors.map((c) => c.hex).slice(0, 5),
+          colorNames: b.colors.map((c) => c.name ?? "").slice(0, 5),
+          mainMessage, subMessage, ctaOverride, style, formats,
         }),
       });
-      const data = (await res.json()) as { images?: string[]; error?: string };
+      const data = (await res.json()) as { images?: Result[]; error?: string };
       if (!res.ok || !data.images) { setGenError(data.error ?? "Generation failed. Try again."); return; }
-      setResults((prev) => (append ? [...prev, ...data.images!] : data.images!));
+      setResults(data.images);
     } catch { setGenError("Generation failed. Try again."); }
     finally { setIsGenerating(false); }
-  }, [brand, mainMessage, subMessage, ctaOverride, style, format]);
+  }, [brand, mainMessage, subMessage, ctaOverride, style, selectedFormats, pageMarkdown]);
 
-  function toggleSave(i: number) {
-    setSaved((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  function toggleChosen(i: number) {
+    setChosen((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
   }
-  const allSaved = results.length > 0 && saved.size === results.length;
+  const allChosen = results.length > 0 && chosen.size === results.length;
   function toggleSelectAll() {
-    setSaved(allSaved ? new Set() : new Set(results.map((_, i) => i)));
+    setChosen(allChosen ? new Set() : new Set(results.map((_, i) => i)));
   }
   // Export at the format's exact pixel dimensions (cover-crop the generated image).
-  function downloadImage(url: string, i: number) {
-    const name = `${(activeBrand.name ?? activeBrand.domain).replace(/\W+/g, "-").toLowerCase()}-${activeFormat.id}-${i + 1}.png`;
+  function downloadImage(r: Result, i: number) {
+    const fmt = formatMeta(r.format);
+    const name = `${(activeBrand.name ?? activeBrand.domain).replace(/\W+/g, "-").toLowerCase()}-${fmt.id}-${i + 1}.png`;
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      const { w, h } = activeFormat;
+      const { w, h } = fmt;
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      // cover-fit
       const scale = Math.max(w / img.width, h / img.height);
       const dw = img.width * scale, dh = img.height * scale;
       ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
@@ -338,15 +354,13 @@ export default function Page() {
       a.download = name;
       a.click();
     };
-    img.onerror = () => { const a = document.createElement("a"); a.href = url; a.download = name; a.click(); };
-    img.src = url;
+    img.onerror = () => { const a = document.createElement("a"); a.href = r.url; a.download = name; a.click(); };
+    img.src = r.url;
   }
   function downloadAll() {
-    results.forEach((url, i) => setTimeout(() => downloadImage(url, i), i * 300));
+    const idxs = chosen.size > 0 ? [...chosen] : results.map((_, i) => i);
+    idxs.forEach((idx, k) => setTimeout(() => downloadImage(results[idx], idx), k * 300));
   }
-
-  // The generated image's true aspect (gpt-image-1: square for posts, 3:2 otherwise).
-  const genRatio = activeFormat.id === "li_post" ? 1 : 1536 / 1024;
 
   // ══════════════════════════════ LANDING ══════════════════════════════
   if (view === "landing") {
@@ -380,7 +394,7 @@ export default function Page() {
                 <span className="pl-3 text-muted-foreground"><GlobeIcon /></span>
                 <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Enter your brand URL — e.g. stripe.com" className="flex-1 bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none" disabled={loadingBrand} />
                 <button type="submit" disabled={loadingBrand || !url.trim()} className="btn-gradient shrink-0 whitespace-nowrap">
-                  {loadingBrand ? <span className="flex items-center gap-2"><span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Reading…</span> : <><SparkleIcon /> Generate Ads</>}
+                  {loadingBrand ? <span className="flex items-center gap-2"><span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Reading…</span> : <>✨ Generate Ads</>}
                 </button>
               </div>
               {brandError && <p className="mt-2 text-xs text-red-600">{brandError}</p>}
@@ -405,7 +419,7 @@ export default function Page() {
             </div>
             {/* floating chips */}
             <div className="absolute -left-3 top-8 hidden animate-float rounded-xl bg-card px-3 py-2 text-xs font-medium text-foreground shadow-notif ring-1 ring-border sm:flex sm:items-center sm:gap-2">
-              <span className="grid size-5 place-items-center rounded-full bg-primary text-foreground"><CheckIcon /></span> 3 on-brand variations
+              <span className="grid size-5 place-items-center rounded-full bg-primary text-white"><CheckIcon className="size-3" /></span> One ad per format
             </div>
             <div className="absolute -right-3 bottom-8 hidden animate-float [animation-delay:-3s] rounded-xl bg-card px-3 py-2 text-xs font-medium text-foreground shadow-notif ring-1 ring-border sm:flex sm:items-center sm:gap-2">
               <span className="text-primary"><DownloadIcon /></span> Export-ready PNG
@@ -478,139 +492,164 @@ export default function Page() {
         <BrandFlex brand={b} url={url} setUrl={setUrl} onLoad={() => url.trim() && void loadBrand(url)} loading={loadingBrand} />
         {brandError && <p className="text-xs text-red-600">{brandError}</p>}
 
-        {/* Studio: controls (left) + canvas (right) */}
-        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+        {/* Studio: controls (left) + gallery (right) */}
+        <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
           {/* Controls column */}
-          <div className="space-y-6">
-            {/* Format */}
-            <div>
-              <p className="mb-3 text-[13px] font-semibold text-muted-foreground">Format</p>
-              <div className="grid grid-cols-2 gap-2">
-                {FORMATS.map((f) => (
-                  <button key={f.id} onClick={() => setFormat(f.id)}
-                    className={`flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition ${format === f.id ? "border-primary bg-primary/15" : "border-border bg-card hover:border-primary/50"}`}>
-                    <span className={`grid size-8 shrink-0 place-items-center rounded-md ${format === f.id ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>{f.icon}</span>
-                    <div className="min-w-0"><p className="truncate text-[12px] font-semibold text-foreground">{f.label}</p><p className="text-[10px] text-muted-foreground">{f.dims}</p></div>
-                  </button>
-                ))}
+          <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+            {/* Formats — multi-select, up to 3 */}
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">Formats</p>
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-brand-washed ring-1 ring-primary/30">{selectedFormats.length}/3</span>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                {FORMATS.map((f) => {
+                  const isSel = selectedFormats.includes(f.id);
+                  const disabled = !isSel && selectedFormats.length >= 3;
+                  return (
+                    <button key={f.id} onClick={() => toggleFormat(f.id)} disabled={disabled}
+                      className={`relative flex items-center gap-2.5 rounded-xl border p-2.5 pr-6 text-left transition ${isSel ? "border-primary bg-primary/15" : "border-border bg-white/[0.02] hover:border-primary/50"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}>
+                      <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${isSel ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>{f.icon}</span>
+                      <div className="min-w-0 leading-tight"><p className="text-[12px] font-semibold text-foreground">{f.label}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{f.dims}</p></div>
+                      {isSel && <span className="absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-primary text-white"><CheckIcon className="size-2.5" /></span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Pick up to 3 — we generate one distinct on-brand ad for each.</p>
             </div>
 
             {/* Customize */}
             <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="mb-4 text-sm font-semibold text-foreground">Customize <span className="font-normal text-muted-foreground">(optional)</span></p>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Main message</label>
-                <input type="text" value={mainMessage} onChange={(e) => setMainMessage(e.target.value)} placeholder="Payments infrastructure for the internet" className="input" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Sub message <span className="text-muted-foreground">(optional)</span></label>
-                <input type="text" value={subMessage} onChange={(e) => setSubMessage(e.target.value)} placeholder="Scale globally. Start locally." className="input" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Style</label>
-                <div className="relative">
-                  <select value={style} onChange={(e) => setStyle(e.target.value as StyleId)} className="input cursor-pointer appearance-none pr-9">
-                    {STYLES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <p className="mb-4 text-sm font-semibold text-foreground">Customize <span className="font-normal text-muted-foreground">(optional)</span></p>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Main message</label>
+                  <input type="text" value={mainMessage} onChange={(e) => setMainMessage(e.target.value)} placeholder="Leave blank to let AI write it" className="input" />
                 </div>
-              </div>
-              <div className="border-t border-border pt-4">
-                <button onClick={() => setAdvancedOpen((v) => !v)} className="flex w-full items-center justify-between text-[13px] font-semibold text-muted-foreground">
-                  Advanced options<ChevronDown className={`size-4 text-muted-foreground transition ${advancedOpen ? "rotate-180" : ""}`} />
-                </button>
-                {advancedOpen && (
-                  <div className="mt-4">
-                    <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Custom call-to-action</label>
-                    <input type="text" value={ctaOverride} onChange={(e) => setCtaOverride(e.target.value)} placeholder="e.g. Start free trial" className="input" />
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Sub message <span className="text-muted-foreground">(optional)</span></label>
+                  <input type="text" value={subMessage} onChange={(e) => setSubMessage(e.target.value)} placeholder="Scale globally. Start locally." className="input" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Style</label>
+                  <div className="relative">
+                    <select value={style} onChange={(e) => setStyle(e.target.value as StyleId)} className="input cursor-pointer appearance-none pr-9">
+                      {STYLES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   </div>
-                )}
+                </div>
+                <div className="border-t border-border pt-4">
+                  <button onClick={() => setAdvancedOpen((v) => !v)} className="flex w-full items-center justify-between text-[13px] font-semibold text-muted-foreground">
+                    Advanced options<ChevronDown className={`size-4 text-muted-foreground transition ${advancedOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {advancedOpen && (
+                    <div className="mt-4">
+                      <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Custom call-to-action</label>
+                      <input type="text" value={ctaOverride} onChange={(e) => setCtaOverride(e.target.value)} placeholder="e.g. Start free trial" className="input" />
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => void generate()} disabled={isGenerating || selectedFormats.length === 0} className="btn-dark w-full">
+                  {isGenerating ? <span className="flex items-center gap-2"><span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Generating…</span> : <>✨ Generate {selectedFormats.length} ad{selectedFormats.length === 1 ? "" : "s"}</>}
+                </button>
               </div>
-              <button onClick={() => void generate(false)} disabled={isGenerating} className="btn-dark w-full">
-                {isGenerating ? <span className="flex items-center gap-2"><span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Generating…</span> : <><SparkleIcon /> Generate Ads</>}
-              </button>
-            </div>
             </div>
           </div>
 
-          {/* Generated ads */}
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <div className="mb-4 flex items-start justify-between gap-4">
+          {/* Gallery column */}
+          <div className="min-w-0">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">3. Your generated ads</p>
-                <p className="text-[13px] text-muted-foreground">Real AI-generated creatives — on your brand, ready to ship.</p>
+                <p className="text-base font-semibold text-foreground">Generated ads</p>
+                <p className="text-[13px] text-muted-foreground">Real AI creatives — on your brand, ready to ship.</p>
               </div>
-              {results.length > 0 && !isGenerating && (
-                <div className="flex items-center gap-3">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                    <input type="checkbox" checked={allSaved} onChange={toggleSelectAll} className="size-3.5 accent-primary" /> Select all
-                  </label>
-                  <button onClick={downloadAll} className="btn-secondary text-xs"><DownloadIcon /> Download all</button>
+              {results.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button onClick={toggleSelectAll} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition ${allChosen ? "border-primary bg-primary/15 text-brand-washed" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+                    <span className={`grid size-4 place-items-center rounded-[5px] ${allChosen ? "bg-primary text-white" : "border border-current"}`}>{allChosen && <CheckIcon className="size-2.5" />}</span>
+                    Select all
+                  </button>
+                  <button onClick={downloadAll} className="btn-dark px-3 py-1.5 text-[12px]"><DownloadIcon /> {chosen.size > 0 ? `Download ${chosen.size}` : "Download all"}</button>
                 </div>
               )}
             </div>
 
             {/* Empty state */}
             {results.length === 0 && !isGenerating && (
-              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-14 text-center">
-                <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-blue to-brand-purple text-foreground shadow-glow"><ImageIcon /></span>
-                <p className="mt-3 text-sm font-semibold text-foreground">Your ad creatives will appear here</p>
-                <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">Pick a format, add an optional message, and hit generate. We&apos;ll paint 3 on-brand variations.</p>
-                <button onClick={() => void generate(false)} className="btn-dark mt-5"><SparkleIcon /> Generate Ads</button>
-                {genError && <p className="mt-4 text-xs text-red-600">{genError}</p>}
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-white/[0.015] px-6 py-20 text-center">
+                <span className="grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-blue to-brand-purple text-white shadow-glow"><ImageIcon /></span>
+                <p className="mt-4 text-[15px] font-semibold text-foreground">Your ad creatives will appear here</p>
+                <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">Choose your formats on the left, add an optional message, and hit generate — we&apos;ll craft one distinct, on-brand ad for each format.</p>
+                <button onClick={() => void generate()} disabled={selectedFormats.length === 0} className="btn-dark mt-6"><SparkleIcon /> Generate {selectedFormats.length} ad{selectedFormats.length === 1 ? "" : "s"}</button>
+                {genError && <p className="mt-4 text-xs text-red-500">{genError}</p>}
               </div>
             )}
 
-            {/* Loading */}
-            {isGenerating && results.length === 0 && (
-              <div>
-                <div className="mb-4 flex items-center justify-center gap-2 text-[13px] text-muted-foreground">
+            {/* Loading — one skeleton per selected format, true shape */}
+            {isGenerating && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-center gap-2 text-[13px] text-muted-foreground">
                   <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  Painting your ads with AI — this usually takes ~20–40s
+                  Painting {orderedFormats.length} on-brand ad{orderedFormats.length === 1 ? "" : "s"} — usually ~20–40s
                 </div>
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="overflow-hidden rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02]" style={{ aspectRatio: String(genRatio) }}>
-                      <div className="size-full animate-pulse" />
+                {orderedFormats.map((f) => (
+                  <div key={f.id} className="overflow-hidden rounded-2xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                      <span className="grid size-6 place-items-center rounded-md bg-muted text-muted-foreground">{f.icon}</span>
+                      <p className="text-[13px] font-semibold text-foreground">{f.label}</p>
+                      <span className="text-[11px] text-muted-foreground">{f.dims}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="p-4">
+                      <div className={`mx-auto w-full ${f.id === "li_post" ? "max-w-[420px]" : f.ratio >= 2 ? "max-w-full" : "max-w-[640px]"} overflow-hidden rounded-lg bg-gradient-to-br from-white/[0.07] to-white/[0.02]`} style={{ aspectRatio: String(f.ratio) }}>
+                        <div className="size-full animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Results */}
-            {results.length > 0 && (
-              <>
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {results.map((url, i) => (
-                    <div key={i} className="group relative animate-fade-up overflow-hidden rounded-xl ring-1 ring-border shadow-ad" style={{ animationDelay: `${(i % 3) * 70}ms` }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`Ad variation ${i + 1}`} className="w-full object-cover" style={{ aspectRatio: String(genRatio) }} />
-                      {/* hover actions */}
-                      <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/70 via-black/0 to-transparent p-3 opacity-0 transition group-hover:opacity-100">
-                        <button onClick={() => downloadImage(url, i)} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-sm transition hover:bg-neutral-200"><DownloadIcon /> {activeFormat.w} × {activeFormat.h}</button>
-                        <button onClick={() => toggleSave(i)} aria-label="Save" className={`grid size-8 place-items-center rounded-lg shadow-sm transition ${saved.has(i) ? "bg-primary text-white" : "bg-white/90 text-ink hover:bg-white"}`}><BookmarkIcon filled={saved.has(i)} /></button>
+            {/* Results — vertical gallery, WYSIWYG crop matches download */}
+            {results.length > 0 && !isGenerating && (
+              <div className="space-y-5">
+                {results.map((r, i) => {
+                  const f = formatMeta(r.format);
+                  const isChosen = chosen.has(i);
+                  const maxW = r.format === "li_post" ? "max-w-[420px]" : f.ratio >= 2 ? "max-w-full" : "max-w-[640px]";
+                  return (
+                    <div key={i} className="animate-fade-up overflow-hidden rounded-2xl border border-border bg-card shadow-card" style={{ animationDelay: `${i * 70}ms` }}>
+                      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">{f.icon}</span>
+                          <p className="truncate text-[13px] font-semibold text-foreground">{f.label}</p>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{f.w} × {f.h}</span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button onClick={() => toggleChosen(i)} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition ${isChosen ? "border-primary bg-primary/15 text-brand-washed" : "border-border bg-white/[0.02] text-muted-foreground hover:text-foreground"}`}>
+                            <span className={`grid size-4 place-items-center rounded-full ${isChosen ? "bg-primary text-white" : "border border-current"}`}>{isChosen && <CheckIcon className="size-2.5" />}</span>
+                            {isChosen ? "Selected" : "Select"}
+                          </button>
+                          <button onClick={() => downloadImage(r, i)} className="btn-secondary px-2.5 py-1.5 text-[12px]"><DownloadIcon /> Download</button>
+                        </div>
                       </div>
-                      {saved.has(i) && (
-                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-white shadow"><BookmarkIcon filled /></span>
-                      )}
+                      <div className="p-4">
+                        <div className={`group relative mx-auto w-full ${maxW} overflow-hidden rounded-lg ring-1 ring-border`} style={{ aspectRatio: String(f.ratio) }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={r.url} alt={`${f.label} ad`} className="size-full object-cover" />
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                  {isGenerating && [0, 1, 2].map((i) => (
-                    <div key={`load-${i}`} className="overflow-hidden rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02]" style={{ aspectRatio: String(genRatio) }}>
-                      <div className="size-full animate-pulse" />
-                    </div>
-                  ))}
-                </div>
+                  );
+                })}
 
-                {genError && <p className="mt-4 text-xs text-red-600">{genError}</p>}
+                {genError && <p className="text-xs text-red-500">{genError}</p>}
 
-                <div className="mt-6 flex justify-center">
-                  <button onClick={() => void generate(true)} disabled={isGenerating} className="btn-secondary text-[13px]"><RefreshIcon /> Generate 3 more</button>
+                <div className="flex justify-center pt-1">
+                  <button onClick={() => void generate()} disabled={isGenerating} className="btn-secondary text-[13px]"><RefreshIcon /> Regenerate</button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -772,15 +811,13 @@ function BrandFlex({ brand, url, setUrl, onLoad, loading }: {
 function XIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>; }
 function LinkedInIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>; }
 function ImageIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/></svg>; }
-function FrameIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeDasharray="3 3" className="size-5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>; }
 function GlobeIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>; }
 function SlidersIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/></svg>; }
 function SparkleIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="size-4"><path d="M12 2l1.6 4.9L18.5 8.5l-4.9 1.6L12 15l-1.6-4.9L5.5 8.5l4.9-1.6z"/></svg>; }
 function ChevronDown({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className ?? "size-4"}><path d="m6 9 6 6 6-6"/></svg>; }
 function DownloadIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>; }
-function BookmarkIcon({ filled }: { filled: boolean }) { return <svg viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" className="size-4"><path d="M6 4h12v16l-6-4-6 4z"/></svg>; }
 function RefreshIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>; }
-function CheckIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="size-4"><path d="m5 13 4 4L19 7"/></svg>; }
+function CheckIcon({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className ?? "size-4"}><path d="m5 13 4 4L19 7"/></svg>; }
 function BoltIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="size-3"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/></svg>; }
 function ColorIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13" r="1.3" fill="currentColor" stroke="none"/></svg>; }
 function FontIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><path d="M5 20 12 4l7 16M7.5 14h9"/></svg>; }
