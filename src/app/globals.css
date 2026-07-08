@@ -1,0 +1,50 @@
+@import url("https://rsms.me/inter/inter.css");
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss03";
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: var(--font-feature-settings);
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-white text-neutral-900;
+  }
+  :focus-visible {
+    outline-color: theme("colors.brand.500");
+  }
+  ::selection {
+    background: theme("colors.brand.100");
+    color: theme("colors.brand.900");
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-dark {
+    @apply btn bg-neutral-900 text-white hover:bg-neutral-800 px-4 py-2.5;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-neutral-800 px-4 py-2.5 ring-1 ring-neutral-900/10 hover:bg-neutral-50;
+  }
+  .input {
+    @apply block w-full rounded-lg bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 ring-1 ring-neutral-900/10 focus:ring-2 focus:ring-brand-500 focus:outline-none transition;
+  }
+  .section-title {
+    @apply text-center text-2xl font-semibold tracking-tight text-neutral-900;
+  }
+  .section-sub {
+    @apply mt-1.5 text-center text-sm text-neutral-500;
+  }
+}
