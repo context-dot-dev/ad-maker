@@ -1,11 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
-import { creativeDirector, copywriter } from "@/lib/generate/creative-director";
-import { artDirector } from "@/lib/generate/art-director";
-import { buildImagePrompt } from "@/lib/generate/prompt-builder";
-import { renderImage } from "@/lib/generate/image-generator";
+import { selectReferences } from "@/lib/generate/references";
+import { copywriter } from "@/lib/generate/copywriter";
+import { buildPosterPrompt } from "@/lib/generate/prompt-builder";
+import { downloadReferences, renderPoster } from "@/lib/generate/image-generator";
 import { FORMAT_SPEC, type FormatId } from "@/lib/generate/presets";
-import type { Brand } from "@/lib/generate/types";
+import type { Brand, Copy } from "@/lib/generate/types";
 
 export const maxDuration = 300;
 
@@ -18,10 +18,12 @@ const requestSchema = z.object({
   pageContext: z.string().default(""),
   colors: z.array(z.string()).default([]),
   colorNames: z.array(z.string()).default([]),
+  logoUrl: z.string().default(""),
+  backdrops: z.array(z.string()).default([]),
   mainMessage: z.string().default(""),
   subMessage: z.string().default(""),
   ctaOverride: z.string().default(""),
-  style: z.string().default(""),
+  textFree: z.boolean().default(false),
   formats: z.array(z.enum(formatIds)).min(1).max(3),
 });
 
@@ -45,42 +47,34 @@ export async function POST(req: Request) {
   };
 
   try {
-    // Staged pipeline: creative direction → (copy ‖ art direction) → poster prompt → image.
-    const creative = await creativeDirector(openai, brand, d.formats.length, d.style);
-    const [copies, concepts] = await Promise.all([
-      copywriter(openai, brand, creative),
-      artDirector(openai, brand, creative),
-    ]);
+    // ONE strongest reference — avoid averaging multiple assets into AI soup.
+    const candidateUrls = selectReferences({ backdrops: d.backdrops, logoUrl: d.logoUrl });
+    const downloaded = await downloadReferences(candidateUrls);
+    const refs = downloaded.slice(0, 1);
+
+    const copies: Copy[] = d.textFree ? [] : await copywriter(openai, brand, d.formats.length);
 
     const cta = d.ctaOverride.trim() || undefined;
     const images = await Promise.all(
       d.formats.map((format, i) => {
-        const copy = { ...(copies[i] ?? copies[0]) };
-        // Honour a user-supplied headline / sub across the set.
-        if (d.mainMessage.trim()) copy.headline = d.mainMessage.trim();
-        if (d.subMessage.trim()) copy.sub = d.subMessage.trim();
-
-        const prompt = buildImagePrompt({
-          brand,
-          creative,
-          concept: concepts[i] ?? concepts[0],
-          copy,
-          angle: creative.angles[i] ?? creative.angles[0],
-          format,
-          cta,
-        });
-        return renderImage(openai, prompt, format).then((url) => ({ format, url }));
+        const copy: Copy = {
+          headline: d.mainMessage.trim() || copies[i]?.headline || "",
+          sub: d.subMessage.trim() || copies[i]?.sub || "",
+        };
+        const prompt = buildPosterPrompt({ brand, copy, format, hasRefs: refs.length > 0, textFree: d.textFree, cta });
+        return renderPoster({ apiKey: key, prompt, format, refs }).then((url) => ({ format, url }));
       }),
     );
 
-    return Response.json({ images, creative });
+    return Response.json({ images, usedReferences: refs.length });
   } catch (err) {
     console.error("[generate] error:", err);
-    const e = err as { statusCode?: number; message?: string };
+    const e = err as { status?: number; statusCode?: number; message?: string };
+    const status = e?.status ?? e?.statusCode;
     let message = "Image generation failed. Please try again.";
-    if (e?.statusCode === 401) message = "The AI provider rejected the API key (401). Check OPENAI_API_KEY in admaker/.env.";
-    else if (e?.statusCode === 429) message = "Rate limited by OpenAI. Try again in a moment.";
-    else if (e?.statusCode === 403) message = "Your OpenAI account can't access the image model yet (needs org verification for gpt-image-1).";
+    if (status === 401) message = "The AI provider rejected the API key (401). Check OPENAI_API_KEY in admaker/.env.";
+    else if (status === 429) message = "Rate limited by OpenAI. Try again in a moment.";
+    else if (status === 403) message = "Your OpenAI account can't access the image model yet (needs org verification for gpt-image-1).";
     return Response.json({ error: message }, { status: 500 });
   }
 }

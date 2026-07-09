@@ -1,43 +1,51 @@
-import { DESIGN_SYSTEMS, COMPOSITION_ARCHETYPES, FORMAT_SPEC } from "./presets";
-import type { Brand, CreativeDirection, VisualConcept, Copy } from "./types";
+import { FORMAT_SPEC } from "./presets";
+import type { Brand, Copy } from "./types";
 import type { FormatId } from "./presets";
 
 /**
- * Poster-first prompt. The hero visual leads; typography supports. No layout
- * grid, no CTA button, no icons — the point is a memorable, shareable image.
+ * "Continue the campaign" prompt. When a real reference is attached we ask the
+ * model to EXTEND the existing visual system — not reinterpret it. We give it
+ * almost no creative choices; the reference answers them.
  */
-export function buildImagePrompt(opts: {
+export function buildPosterPrompt(opts: {
   brand: Brand;
-  creative: CreativeDirection;
-  concept: VisualConcept;
   copy: Copy;
-  angle: string;
   format: FormatId;
+  hasRefs: boolean;
+  textFree: boolean;
   cta?: string;
 }): string {
-  const { brand, creative, concept, copy, angle, format, cta } = opts;
-  const ds = DESIGN_SYSTEMS[creative.designLanguage];
+  const { brand, copy, format, hasRefs, textFree, cta } = opts;
   const spec = FORMAT_SPEC[format];
-  const comp = COMPOSITION_ARCHETYPES[concept.composition];
+  const parts: string[] = [];
 
-  const palette = brand.colors.length
-    ? brand.colors.map((c, i) => (brand.colorNames[i] ? `${c} (${brand.colorNames[i]})` : c)).join(", ")
-    : "the brand palette";
+  if (hasRefs) {
+    parts.push(
+      `The attached image is a real campaign asset from "${brand.name}" (${brand.domain}). Imagine you have just joined ${brand.name}'s design team. Create the NEXT poster that belongs in this exact campaign — someone scrolling ${brand.domain} should believe the same design team made it.`,
+    );
+    parts.push(
+      `Reuse the same illustration language, spacing, color relationships, lighting, texture, typography hierarchy and compositional rhythm. Do NOT introduce new visual motifs. Do NOT simplify. Do NOT reinterpret. Continue the visual system.`,
+    );
+  } else {
+    parts.push(
+      `Create a premium brand poster for "${brand.name}" (${brand.domain}) that looks like it belongs on their own website.${brand.description ? ` ${brand.description}.` : ""}`,
+    );
+  }
 
-  return [
-    `A premium BRAND POSTER for "${brand.name}" — a striking, shareable image, NOT a templated ad. Crop intent: ${spec.crop}.`,
-    `Design language: ${ds.label} — ${ds.look}.`,
-    `Campaign: ${creative.campaignConcept}. This piece: ${angle}. Mood: ${creative.mood}.`,
-    ``,
-    `THE HERO (this is the star, it dominates the image): ${concept.heroObject}, ${concept.scale}. Focal point: ${concept.focalPoint}.`,
-    `Composition: ${comp} — intentionally UNBALANCED with ${concept.emptySpace} empty space. Do NOT center everything into a tidy template.`,
-    `Atmosphere: ${concept.atmosphere}. Lighting: ${concept.lighting}. Texture: ${concept.texture}. Background: ${creative.backgroundApproach} — ${ds.texture}. The image must have real depth and mood, never flat or empty.`,
-    `Color: use ONLY ${palette}. ${creative.paletteUsage}. Maximum 3 colors.`,
-    ``,
-    `Typography SUPPORTS the visual (it must never look like a slide): headline "${copy.headline}" in ${concept.typographyWeight} weight; a small supporting line "${copy.sub}"; a small "${brand.name}" wordmark and "${brand.domain}".${cta ? ` A small text label "${cta}" (as plain text, NOT a button).` : ""} Perfectly spelled, real letters only, no extra text.`,
-    ``,
-    `WALLPAPER TEST: the composition must still look beautiful with ALL text removed.`,
-    `Strictly DO NOT include: icons, checkmarks, globes-as-clipart, node/network diagrams, laptops, phones, monitors, UI mockups, dashboards, charts, buttons, stock-photo people, clip-art, watermarks, borders or frames, or a symmetric centered template. No misspelled or repeated letters.`,
-    creative.avoid.length ? `Also avoid: ${creative.avoid.join(", ")}.` : "",
-  ].filter(Boolean).join("\n");
+  parts.push(`Crop intent: ${spec.crop}.`);
+
+  if (textFree) {
+    parts.push(
+      `Output ONLY the artwork — no words, no headline, no logo text, no UI, no product mockups, no icons, no charts, no people (unless the reference itself uses people). Pure campaign artwork that could be a desktop wallpaper.`,
+    );
+  } else {
+    parts.push(
+      `Set this copy in the brand's OWN typographic style, matching the reference's type hierarchy exactly: headline "${copy.headline}"; a small supporting line "${copy.sub}"; a small "${brand.name}" wordmark and "${brand.domain}".${cta ? ` A small plain-text label "${cta}" (NOT a button).` : ""} Perfectly spelled, real letters only, no other text.`,
+    );
+    parts.push(
+      `Do NOT add generic icons, checkmarks, UI mockups, dashboards, charts, buttons, stock-photo people, watermarks, borders or frames.`,
+    );
+  }
+
+  return parts.join("\n");
 }

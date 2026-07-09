@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import ImageMouseTrail from "@/components/ui/mousetrail";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,9 +24,6 @@ type BrandAssets = {
   creditsRemaining: number | null;
 };
 
-type Ad = { headline: string; highlight: string; body: string; cta: string };
-type Variant = "primary" | "dark" | "light";
-
 type FormatId = "x_banner" | "li_post" | "li_banner" | "ad_16_9";
 type StyleId = "clean" | "bold" | "minimal" | "playful" | "elegant";
 type Result = { format: FormatId; url: string };
@@ -39,8 +37,6 @@ const FORMATS: { id: FormatId; label: string; dims: string; ratio: number; w: nu
   { id: "ad_16_9",   label: "Ad · 16:9",       dims: "1200 × 675",  ratio: 16 / 9,     w: 1200, h: 675,  icon: <ImageIcon /> },
 ];
 
-// gpt-image-1 renders square for posts and 3:2 for everything else.
-const genRatioFor = (f: FormatId) => (f === "li_post" ? 1 : 1536 / 1024);
 const formatMeta = (f: FormatId) => FORMATS.find((x) => x.id === f)!;
 
 const STYLES: { id: StyleId; label: string }[] = [
@@ -67,125 +63,17 @@ const DEMO_BRAND: BrandAssets = {
   creditsRemaining: null,
 };
 
-const DEMO_AD: Ad = { headline: "Ship features faster with real-time web data.", highlight: "real-time", body: "", cta: "acme.com" };
-
-// Brands shown in the "works with any site" marquee (favicons via Google's CDN).
-const MARQUEE_BRANDS: { name: string; domain: string }[] = [
-  { name: "Stripe", domain: "stripe.com" },
-  { name: "Linear", domain: "linear.app" },
-  { name: "Notion", domain: "notion.so" },
-  { name: "Vercel", domain: "vercel.com" },
-  { name: "OpenAI", domain: "openai.com" },
-  { name: "Figma", domain: "figma.com" },
-  { name: "Framer", domain: "framer.com" },
-  { name: "Anthropic", domain: "anthropic.com" },
-  { name: "GitHub", domain: "github.com" },
-  { name: "Shopify", domain: "shopify.com" },
-  { name: "Ramp", domain: "ramp.com" },
-  { name: "Loom", domain: "loom.com" },
-];
-
 const EXAMPLE_DOMAINS = ["stripe.com", "linear.app", "notion.so", "vercel.com"];
 
-// ── Color helpers ─────────────────────────────────────────────────────────────
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-  const n = parseInt(full.slice(0, 6), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-function rgbToHex(r: number, g: number, b: number) {
-  return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
-}
-function mix(a: string, b: string, t: number) {
-  try {
-    const [r1, g1, b1] = hexToRgb(a);
-    const [r2, g2, b2] = hexToRgb(b);
-    return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t);
-  } catch { return a; }
-}
-const lighten = (hex: string) => mix(hex, "#ffffff", 0.55);
-
-// ── Ad Visual ─────────────────────────────────────────────────────────────────
-
-function AdVisual({
-  brand, ad, ratio, variant, className,
-}: { brand: BrandAssets; ad: Ad; ratio: number; variant: Variant; className?: string }) {
-  const primary = brand.primaryColor ?? "#2663ec";
-  const dark = brand.darkColor ?? "#0a2540";
-
-  let background: string, textColor: string, hlColor: string, ctaBg: string, ctaText: string, logoFilter: string, globeStroke: string, globeOpacity: number;
-  if (variant === "light") {
-    // Clean white — dark text, brand-colored accents & CTA.
-    background = "#ffffff"; textColor = "#0b0b12"; hlColor = primary;
-    ctaBg = primary; ctaText = "#ffffff"; logoFilter = "none"; globeStroke = primary; globeOpacity = 0.1;
-  } else if (variant === "dark") {
-    // Neutral charcoal — NOT the brand hue — with brand color as the accent so it
-    // reads distinctly from the primary variant even for single-color brands.
-    background = "radial-gradient(120% 120% at 100% 0%, #1b1d24 0%, #0a0b0f 60%)";
-    textColor = "#ffffff"; hlColor = lighten(primary); ctaBg = primary; ctaText = "#ffffff"; logoFilter = "brightness(0) invert(1)"; globeStroke = primary; globeOpacity = 0.4;
-  } else {
-    // Full brand color gradient.
-    background = `linear-gradient(135deg, ${primary} 0%, ${mix(primary, "#141235", 0.6)} 100%)`;
-    textColor = "#ffffff"; hlColor = "#ffffff"; ctaBg = "rgba(255,255,255,0.16)"; ctaText = "#ffffff"; logoFilter = "brightness(0) invert(1)"; globeStroke = "#ffffff"; globeOpacity = 0.18;
-  }
-
-  const headlineNode = ad.highlight && ad.headline.includes(ad.highlight)
-    ? (() => {
-        const [before, after] = ad.headline.split(ad.highlight);
-        return (<>{before}<span style={{ color: hlColor }}>{ad.highlight}</span>{after}</>);
-      })()
-    : ad.headline;
-
-  return (
-    <div
-      className={`relative overflow-hidden ${variant === "light" ? "ring-1 ring-border" : ""} ${className ?? ""}`}
-      style={{ aspectRatio: String(ratio), background, color: textColor }}
-    >
-      <GlobeGraphic stroke={globeStroke} opacity={globeOpacity} />
-      <div className="relative flex h-full flex-col justify-between p-[5%]">
-        <div className="flex items-center gap-2">
-          {brand.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={brand.logoUrl} alt="" className="h-[1.5em] w-auto max-w-[40%] object-contain object-left" style={{ filter: logoFilter }} />
-          ) : (
-            <span className="grid size-[1.6em] place-items-center rounded-md text-[0.7em] font-bold" style={{ background: variant === "light" ? primary : "rgba(255,255,255,0.15)", color: "#fff" }}>
-              {(brand.name ?? "A")[0]}
-            </span>
-          )}
-        </div>
-
-        <p className="max-w-[88%] font-semibold leading-[1.12] tracking-tight" style={{ fontSize: "clamp(0.85rem, 2.6vw, 1.7rem)" }}>
-          {ad.headline ? headlineNode : <span className="inline-block h-3 w-3/4 animate-pulse rounded" style={{ background: "currentColor", opacity: 0.2 }} />}
-        </p>
-
-        <div className="flex items-end justify-between gap-2">
-          {ad.body
-            ? <span className="max-w-[60%] text-[0.62em] leading-snug opacity-70">{ad.body}</span>
-            : <span />}
-          <span className="rounded-md px-[0.8em] py-[0.45em] text-[0.6em] font-semibold" style={{ background: ctaBg, color: ctaText }}>
-            {ad.cta || brand.domain}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GlobeGraphic({ stroke, opacity }: { stroke: string; opacity: number }) {
-  return (
-    <svg viewBox="0 0 200 200" className="pointer-events-none absolute -right-10 top-1/2 h-[150%] w-auto -translate-y-1/2" fill="none" stroke={stroke} strokeWidth="0.6" style={{ opacity }}>
-      <circle cx="100" cy="100" r="80" />
-      <ellipse cx="100" cy="100" rx="80" ry="30" />
-      <ellipse cx="100" cy="100" rx="80" ry="55" />
-      <ellipse cx="100" cy="100" rx="30" ry="80" />
-      <ellipse cx="100" cy="100" rx="55" ry="80" />
-      <line x1="20" y1="100" x2="180" y2="100" />
-      <line x1="100" y1="20" x2="100" y2="180" />
-    </svg>
-  );
-}
+// Real ad examples for the interactive mouse trail (public/ad-examples).
+const AD_EXAMPLES = [
+  "/ad-examples/stripe.png",
+  "/ad-examples/linear.png",
+  "/ad-examples/notion.png",
+  "/ad-examples/vercel.png",
+  "/ad-examples/openai.png",
+  "/ad-examples/webflow.png",
+];
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
@@ -263,6 +151,7 @@ export default function Page() {
   const [style, setStyle] = useState<StyleId>("clean");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [ctaOverride, setCtaOverride] = useState("");
+  const [textFree, setTextFree] = useState(false);
 
   const [results, setResults] = useState<Result[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -317,7 +206,9 @@ export default function Page() {
           pageContext: pageMarkdown.slice(0, 1800),
           colors: b.colors.map((c) => c.hex).slice(0, 5),
           colorNames: b.colors.map((c) => c.name ?? "").slice(0, 5),
-          mainMessage, subMessage, ctaOverride, style, formats,
+          logoUrl: b.logoUrl ?? "",
+          backdrops: b.backdrops.map((x) => x.url).slice(0, 6),
+          mainMessage, subMessage, ctaOverride, style, textFree, formats,
         }),
       });
       const data = (await res.json()) as { images?: Result[]; error?: string };
@@ -325,7 +216,7 @@ export default function Page() {
       setResults(data.images);
     } catch { setGenError("Generation failed. Try again."); }
     finally { setIsGenerating(false); }
-  }, [brand, mainMessage, subMessage, ctaOverride, style, selectedFormats, pageMarkdown]);
+  }, [brand, mainMessage, subMessage, ctaOverride, style, textFree, selectedFormats, pageMarkdown]);
 
   function toggleChosen(i: number) {
     setChosen((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
@@ -365,7 +256,16 @@ export default function Page() {
   // ══════════════════════════════ LANDING ══════════════════════════════
   if (view === "landing") {
     return (
-      <div className="min-h-dvh overflow-x-hidden font-sans antialiased">
+      <div className="relative min-h-dvh overflow-x-hidden bg-background font-sans antialiased">
+        {/* Full-page interactive brand-data mouse trail */}
+        <ImageMouseTrail
+          items={AD_EXAMPLES}
+          maxNumberOfImages={5}
+          distance={16}
+          imgClass="w-44 h-28 sm:w-64 sm:h-40 rounded-xl object-cover shadow-ad ring-1 ring-white/10"
+        />
+
+        <div className="relative z-10">
         <Header />
 
         {/* ── Hero ── */}
@@ -378,11 +278,10 @@ export default function Page() {
           </div>
 
           <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-            <div className="pill-gradient animate-fade-up">
-              <span>✨ AI ad generator</span>
-            </div>
-
-            <h1 className="mt-6 text-gradient text-5xl font-semibold leading-[1.05] tracking-tight animate-fade-up [animation-delay:60ms] sm:text-[4.25rem]">
+            <p className="mb-5 -skew-x-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground animate-fade-up">
+              Pulls brand data from any site on the web
+            </p>
+            <h1 className="text-gradient text-5xl font-semibold leading-[1.05] tracking-tight animate-fade-up [animation-delay:60ms] sm:text-[4.25rem]">
               On-brand ads,<br />generated in seconds.
             </h1>
             <p className="mt-5 max-w-xl text-balance text-[16px] leading-relaxed text-muted-foreground animate-fade-up [animation-delay:120ms]">
@@ -407,40 +306,6 @@ export default function Page() {
             </form>
           </div>
 
-          {/* Product preview banner */}
-          <div className="relative mx-auto mt-16 max-w-4xl animate-fade-up [animation-delay:240ms]">
-            <div className="absolute inset-x-8 -top-4 -z-10 h-40 rounded-full bg-brand-purple/30 blur-[80px]" />
-            <div className="rounded-3xl border border-border bg-card p-3 shadow-[0_40px_80px_-32px_rgba(0,0,0,0.7)] backdrop-blur-xl">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <AdVisual brand={DEMO_BRAND} ad={DEMO_AD} ratio={16 / 9} variant="primary" className="rounded-2xl shadow-ad" />
-                <AdVisual brand={DEMO_BRAND} ad={{ ...DEMO_AD, headline: "Real-time data. Zero maintenance.", cta: "Start free" }} ratio={16 / 9} variant="dark" className="rounded-2xl shadow-ad" />
-                <AdVisual brand={DEMO_BRAND} ad={{ ...DEMO_AD, headline: "One API for every web context.", cta: "Read docs" }} ratio={16 / 9} variant="light" className="rounded-2xl shadow-ad ring-1 ring-border" />
-              </div>
-            </div>
-            {/* floating chips */}
-            <div className="absolute -left-3 top-8 hidden animate-float rounded-xl bg-card px-3 py-2 text-xs font-medium text-foreground shadow-notif ring-1 ring-border sm:flex sm:items-center sm:gap-2">
-              <span className="grid size-5 place-items-center rounded-full bg-primary text-white"><CheckIcon className="size-3" /></span> One ad per format
-            </div>
-            <div className="absolute -right-3 bottom-8 hidden animate-float [animation-delay:-3s] rounded-xl bg-card px-3 py-2 text-xs font-medium text-foreground shadow-notif ring-1 ring-border sm:flex sm:items-center sm:gap-2">
-              <span className="text-primary"><DownloadIcon /></span> Export-ready PNG
-            </div>
-          </div>
-        </section>
-
-        {/* ── Logo marquee ── */}
-        <section className="py-10">
-          <p className="mb-7 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">Pulls brand data from any site on the web</p>
-          <div className="marquee-mask relative overflow-hidden pause-on-hover">
-            <div className="flex w-max animate-marquee gap-4">
-              {[...MARQUEE_BRANDS, ...MARQUEE_BRANDS].map((brnd, i) => (
-                <div key={i} className="flex shrink-0 items-center gap-2.5 rounded-full border border-border bg-card px-4 py-2 backdrop-blur">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`https://www.google.com/s2/favicons?sz=64&domain=${brnd.domain}`} alt="" className="size-5 rounded" loading="lazy" />
-                  <span className="text-sm font-medium text-muted-foreground">{brnd.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </section>
 
         {/* ── How it works ── */}
@@ -475,6 +340,7 @@ export default function Page() {
             <p>Built with the <a href="https://context.dev" className="font-medium text-muted-foreground hover:text-primary">Context.dev Brand API</a> · © {new Date().getFullYear()} Context.dev, Inc.</p>
           </div>
         </footer>
+        </div>
         <FortuneCookie />
       </div>
     );
@@ -540,6 +406,16 @@ export default function Page() {
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   </div>
                 </div>
+                <button type="button" onClick={() => setTextFree((v) => !v)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-white/[0.02] p-3 text-left transition hover:border-primary/50">
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-semibold text-foreground">Artwork only</span>
+                    <span className="block text-[11px] leading-snug text-muted-foreground">Pure campaign visuals, no text or logo</span>
+                  </span>
+                  <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${textFree ? "bg-primary" : "bg-muted"}`}>
+                    <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${textFree ? "left-[1.125rem]" : "left-0.5"}`} />
+                  </span>
+                </button>
+
                 <div className="border-t border-border pt-4">
                   <button onClick={() => setAdvancedOpen((v) => !v)} className="flex w-full items-center justify-between text-[13px] font-semibold text-muted-foreground">
                     Advanced options<ChevronDown className={`size-4 text-muted-foreground transition ${advancedOpen ? "rotate-180" : ""}`} />
@@ -547,7 +423,7 @@ export default function Page() {
                   {advancedOpen && (
                     <div className="mt-4">
                       <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">Custom call-to-action</label>
-                      <input type="text" value={ctaOverride} onChange={(e) => setCtaOverride(e.target.value)} placeholder="e.g. Start free trial" className="input" />
+                      <input type="text" value={ctaOverride} onChange={(e) => setCtaOverride(e.target.value)} placeholder="e.g. Start free trial" className="input" disabled={textFree} />
                     </div>
                   )}
                 </div>

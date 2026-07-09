@@ -73,6 +73,9 @@ export default {
         blob: "blob 16s ease-in-out infinite",
         shimmer: "shimmer 2.2s ease-in-out infinite",
       },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.34,1.56,0.64,1)",
+      },
     },
   },
   plugins: [],

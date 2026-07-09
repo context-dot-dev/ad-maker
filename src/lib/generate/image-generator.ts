@@ -1,32 +1,65 @@
-import { experimental_generateImage as generateImage } from "ai";
-import type { OpenAIProvider } from "@ai-sdk/openai";
-import { FORMAT_SPEC } from "./presets";
-import type { FormatId } from "./presets";
+import OpenAI, { toFile } from "openai";
+import { FORMAT_SPEC, type FormatId } from "./presets";
 
-const DALLE_SIZE: Record<FormatId, `${number}x${number}`> = {
-  x_banner: "1792x1024",
-  li_banner: "1792x1024",
-  ad_16_9: "1792x1024",
-  li_post: "1024x1024",
-};
+export type RefBuffer = { data: Buffer; type: string; name: string };
 
-/** STEP 10 (render) — gpt-image-1, falling back to dall-e-3. */
-export async function renderImage(openai: OpenAIProvider, prompt: string, format: FormatId): Promise<string> {
-  try {
-    const { image } = await generateImage({
-      model: openai.image("gpt-image-1"),
-      prompt,
-      size: FORMAT_SPEC[format].canvas,
-      providerOptions: { openai: { quality: "high" } },
-    });
-    return `data:${image.mediaType ?? "image/png"};base64,${image.base64}`;
-  } catch (err) {
-    console.warn("[image] gpt-image-1 failed, trying dall-e-3:", (err as Error)?.message);
-    const { image } = await generateImage({
-      model: openai.image("dall-e-3"),
-      prompt,
-      size: DALLE_SIZE[format],
-    });
-    return `data:${image.mediaType ?? "image/png"};base64,${image.base64}`;
+const RASTER = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
+const MAX_BYTES = 20 * 1024 * 1024;
+
+/** Download brand assets once so they can be sent as gpt-image-1 references. */
+export async function downloadReferences(urls: string[]): Promise<RefBuffer[]> {
+  const out = await Promise.all(
+    urls.map(async (url, i): Promise<RefBuffer | null> => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+        if (!RASTER.has(type)) return null; // gpt-image-1 edits need raster (skips SVG logos)
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.byteLength === 0 || buf.byteLength > MAX_BYTES) return null;
+        const ext = type === "image/webp" ? "webp" : type.includes("png") ? "png" : "jpg";
+        return { data: buf, type, name: `ref-${i}.${ext}` };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return out.filter((r): r is RefBuffer => r !== null);
+}
+
+/**
+ * STEP 5 — render. Prefers gpt-image-1 with real brand references (images.edit),
+ * falls back to plain generation, then dall-e-3.
+ */
+export async function renderPoster(opts: { apiKey: string; prompt: string; format: FormatId; refs: RefBuffer[] }): Promise<string> {
+  const { apiKey, prompt, format, refs } = opts;
+  const client = new OpenAI({ apiKey });
+  const size = FORMAT_SPEC[format].canvas;
+
+  // 1) Style-reference edit — the brand's real assets guide the output.
+  if (refs.length > 0) {
+    try {
+      const files = await Promise.all(refs.map((r) => toFile(r.data, r.name, { type: r.type })));
+      const r = await client.images.edit({ model: "gpt-image-1", image: files, prompt, size, quality: "high" });
+      const b64 = r.data?.[0]?.b64_json;
+      if (b64) return `data:image/png;base64,${b64}`;
+    } catch (err) {
+      console.warn("[image] gpt-image-1 edit failed, falling back:", (err as Error)?.message);
+    }
   }
+
+  // 2) Plain gpt-image-1.
+  try {
+    const r = await client.images.generate({ model: "gpt-image-1", prompt, size, quality: "high" });
+    const b64 = r.data?.[0]?.b64_json;
+    if (b64) return `data:image/png;base64,${b64}`;
+  } catch (err) {
+    console.warn("[image] gpt-image-1 generate failed, trying dall-e-3:", (err as Error)?.message);
+  }
+
+  // 3) dall-e-3 last resort.
+  const r = await client.images.generate({ model: "dall-e-3", prompt, size: FORMAT_SPEC[format].dalle, response_format: "b64_json" });
+  const b64 = r.data?.[0]?.b64_json;
+  if (!b64) throw new Error("No image returned");
+  return `data:image/png;base64,${b64}`;
 }
