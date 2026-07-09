@@ -75,13 +75,29 @@ const AD_EXAMPLES = [
   "/ad-examples/webflow.png",
 ];
 
+// Brands for the warped moving-logos band (favicons via Google's CDN).
+const MARQUEE_BRANDS: { name: string; domain: string }[] = [
+  { name: "Stripe", domain: "stripe.com" },
+  { name: "Linear", domain: "linear.app" },
+  { name: "Notion", domain: "notion.so" },
+  { name: "Vercel", domain: "vercel.com" },
+  { name: "OpenAI", domain: "openai.com" },
+  { name: "Figma", domain: "figma.com" },
+  { name: "Framer", domain: "framer.com" },
+  { name: "Anthropic", domain: "anthropic.com" },
+  { name: "GitHub", domain: "github.com" },
+  { name: "Shopify", domain: "shopify.com" },
+  { name: "Ramp", domain: "ramp.com" },
+  { name: "Loom", domain: "loom.com" },
+];
+
 // ── Header ────────────────────────────────────────────────────────────────────
 
 function Logo() {
   return (
-    <a href="/" className="flex items-center gap-2">
-      <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary text-[13px] font-bold text-foreground shadow-[0_4px_12px_-4px_rgba(38,99,236,0.7)]">C</span>
-      <span className="text-[15px] font-semibold tracking-tight text-foreground">Context<span className="text-primary">.dev</span></span>
+    <a href="/" className="flex items-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="Context.dev" className="h-7 w-auto" />
     </a>
   );
 }
@@ -91,13 +107,7 @@ function Header() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
         <Logo />
-        <nav className="hidden items-center gap-7 text-sm md:flex">
-          <a href="https://context.dev" className="text-muted-foreground transition hover:text-foreground">API</a>
-          <a href="https://context.dev/docs" className="text-muted-foreground transition hover:text-foreground">Docs</a>
-          <a href="https://context.dev/pricing" className="text-muted-foreground transition hover:text-foreground">Pricing</a>
-          <a href="https://context.dev/blog" className="text-muted-foreground transition hover:text-foreground">Blog</a>
-        </nav>
-        <a href="https://context.dev" className="btn-gradient text-[13px]">Go to Dashboard</a>
+        <a href="https://context.dev" target="_blank" rel="noreferrer noopener" className="btn-gradient text-[13px]">Try Context.dev</a>
       </div>
     </header>
   );
@@ -115,6 +125,32 @@ function FortuneCookie() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/fortunecookie.png" alt="Built using Context.dev" className="w-36 drop-shadow-md sm:w-44" />
     </a>
+  );
+}
+
+function WarpedMarquee() {
+  const row = [...MARQUEE_BRANDS, ...MARQUEE_BRANDS];
+  const Pill = ({ b }: { b: { name: string; domain: string } }) => (
+    <div className="flex shrink-0 items-center gap-2.5 rounded-full border border-border bg-card/80 px-5 py-2.5 shadow-card backdrop-blur">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`https://www.google.com/s2/favicons?sz=64&domain=${b.domain}`} alt="" className="size-5 rounded" loading="lazy" />
+      <span className="whitespace-nowrap text-sm font-medium text-muted-foreground">{b.name}</span>
+    </div>
+  );
+  return (
+    <div aria-hidden className="pointer-events-none relative w-full select-none [perspective:1100px]">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3.5 px-5 [transform:rotateX(42deg)_rotateZ(-3deg)] [transform-style:preserve-3d]">
+        <div className="marquee-mask overflow-hidden">
+          <div className="flex w-max animate-marquee gap-4">{row.map((b, i) => <Pill key={`a-${i}`} b={b} />)}</div>
+        </div>
+        <div className="marquee-mask overflow-hidden">
+          <div className="flex w-max animate-marquee gap-4 [animation-direction:reverse]">{row.map((b, i) => <Pill key={`b-${i}`} b={b} />)}</div>
+        </div>
+        <div className="marquee-mask overflow-hidden">
+          <div className="flex w-max animate-marquee gap-4">{row.map((b, i) => <Pill key={`c-${i}`} b={b} />)}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -256,8 +292,8 @@ export default function Page() {
   // ══════════════════════════════ LANDING ══════════════════════════════
   if (view === "landing") {
     return (
-      <div className="relative min-h-dvh overflow-x-hidden bg-background font-sans antialiased">
-        {/* Full-page interactive brand-data mouse trail */}
+      <div className="relative flex min-h-dvh flex-col overflow-x-hidden bg-background font-sans antialiased">
+        {/* Full-page interactive brand-data mouse trail (left/right only) */}
         <ImageMouseTrail
           items={AD_EXAMPLES}
           maxNumberOfImages={5}
@@ -265,81 +301,52 @@ export default function Page() {
           imgClass="w-44 h-28 sm:w-64 sm:h-40 rounded-xl object-cover shadow-ad ring-1 ring-white/10"
         />
 
-        <div className="relative z-10">
-        <Header />
+        <div className="relative z-10 flex flex-1 flex-col">
+          <Header />
 
-        {/* ── Hero ── */}
-        <section className="relative overflow-hidden px-5 pt-20 pb-16 sm:pt-28">
-          {/* glow blobs */}
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-            <div className="absolute left-1/2 top-[-6rem] h-72 w-72 -translate-x-1/2 rounded-full bg-brand-purple/30 blur-[120px] animate-blob" />
-            <div className="absolute right-[8%] top-24 h-64 w-64 rounded-full bg-brand-purple/20 blur-[120px] animate-blob [animation-delay:-6s]" />
-            <div className="absolute left-[6%] top-40 h-56 w-56 rounded-full bg-brand-blue/20 blur-[120px] animate-blob [animation-delay:-3s]" />
-          </div>
+          {/* ── Single-section hero: content centered, logos as a warped floor ── */}
+          <section className="relative flex flex-1 flex-col justify-center overflow-hidden py-10">
+            {/* glow blobs */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+              <div className="absolute left-1/2 top-[-6rem] h-72 w-72 -translate-x-1/2 rounded-full bg-brand-purple/30 blur-[120px] animate-blob" />
+              <div className="absolute right-[8%] top-24 h-64 w-64 rounded-full bg-brand-purple/20 blur-[120px] animate-blob [animation-delay:-6s]" />
+              <div className="absolute left-[6%] top-40 h-56 w-56 rounded-full bg-brand-blue/20 blur-[120px] animate-blob [animation-delay:-3s]" />
+            </div>
 
-          <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-            <p className="mb-5 -skew-x-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground animate-fade-up">
-              Pulls brand data from any site on the web
-            </p>
-            <h1 className="text-gradient text-5xl font-semibold leading-[1.05] tracking-tight animate-fade-up [animation-delay:60ms] sm:text-[4.25rem]">
-              On-brand ads,<br />generated in seconds.
-            </h1>
-            <p className="mt-5 max-w-xl text-balance text-[16px] leading-relaxed text-muted-foreground animate-fade-up [animation-delay:120ms]">
-              Paste any brand URL. We pull the logo, colors, and style — then generate ready-to-ship ad creatives with AI.
-            </p>
+            <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-5 text-center">
+              <p className="mb-5 -skew-x-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground animate-fade-up">
+                Pulls brand data from any site on the web
+              </p>
+              <h1 className="text-gradient text-5xl font-semibold leading-[1.05] tracking-tight animate-fade-up [animation-delay:60ms] sm:text-[4.25rem]">
+                On-brand ads,<br />generated in seconds.
+              </h1>
+              <p className="mt-5 max-w-xl text-balance text-[16px] leading-relaxed text-muted-foreground animate-fade-up [animation-delay:120ms]">
+                Paste any brand URL. We pull the logo, colors, and style — then generate ready-to-ship ad creatives with AI.
+              </p>
 
-            <form onSubmit={(e) => { e.preventDefault(); if (url.trim()) void loadBrand(url); }} className="mt-8 w-full max-w-lg animate-fade-up [animation-delay:180ms]">
-              <div className="flex items-center gap-2 rounded-2xl bg-card p-1.5 shadow-[0_8px_60px_-16px_rgba(112,0,255,0.55)] ring-1 ring-border backdrop-blur focus-within:ring-2 focus-within:ring-primary">
-                <span className="pl-3 text-muted-foreground"><GlobeIcon /></span>
-                <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Enter your brand URL — e.g. stripe.com" className="flex-1 bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none" disabled={loadingBrand} />
-                <button type="submit" disabled={loadingBrand || !url.trim()} className="btn-gradient shrink-0 whitespace-nowrap">
-                  {loadingBrand ? <span className="flex items-center gap-2"><span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Reading…</span> : <>✨ Generate Ads</>}
-                </button>
-              </div>
-              {brandError && <p className="mt-2 text-xs text-red-600">{brandError}</p>}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
-                <span>Try:</span>
-                {EXAMPLE_DOMAINS.map((d) => (
-                  <button key={d} type="button" onClick={() => { setUrl(d); void loadBrand(d); }} className="rounded-full bg-card px-2.5 py-1 font-medium text-muted-foreground ring-1 ring-border transition hover:bg-white/10 hover:text-foreground">{d}</button>
-                ))}
-              </div>
-            </form>
-          </div>
-
-        </section>
-
-        {/* ── How it works ── */}
-        <section className="relative mx-auto max-w-5xl px-5 py-16">
-          <div aria-hidden className="pointer-events-none absolute left-1/2 top-10 -z-10 h-40 w-2/3 -translate-x-1/2 rounded-full bg-brand-purple/25 blur-[120px]" />
-          <div className="text-center">
-            <div className="pill-gradient"><span>How it works</span></div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">From URL to ad in three steps</h2>
-          </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-3">
-            {[
-              { n: 1, icon: <GlobeIcon />, title: "Add your brand URL", desc: "We pull your logo, colors, fonts, and style guide automatically." },
-              { n: 2, icon: <SlidersIcon />, title: "Choose what you want", desc: "Pick a format and tell us what to promote — or let AI decide." },
-              { n: 3, icon: <SparkleIcon />, title: "Generate & download", desc: "Get multiple on-brand, AI-generated variations in seconds." },
-            ].map((s) => (
-              <div key={s.n} className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-card transition duration-300 hover:-translate-y-1 hover:border-primary/50">
-                <div aria-hidden className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full bg-primary/0 blur-2xl transition group-hover:bg-primary/25" />
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-brand-blue to-brand-purple text-white shadow-glow">{s.icon}</span>
-                  <span className="text-4xl font-bold text-foreground/[0.06] transition group-hover:text-foreground/15">0{s.n}</span>
+              <form onSubmit={(e) => { e.preventDefault(); if (url.trim()) void loadBrand(url); }} className="mt-8 w-full max-w-lg animate-fade-up [animation-delay:180ms]">
+                <div className="flex items-center gap-2 rounded-2xl bg-card p-1.5 shadow-[0_8px_60px_-16px_rgba(112,0,255,0.55)] ring-1 ring-border backdrop-blur focus-within:ring-2 focus-within:ring-primary">
+                  <span className="pl-3 text-muted-foreground"><GlobeIcon /></span>
+                  <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Enter your brand URL — e.g. stripe.com" className="flex-1 bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none" disabled={loadingBrand} />
+                  <button type="submit" disabled={loadingBrand || !url.trim()} className="btn-gradient shrink-0 whitespace-nowrap">
+                    {loadingBrand ? <span className="flex items-center gap-2"><span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Reading…</span> : <>✨ Generate Ads</>}
+                  </button>
                 </div>
-                <p className="text-[15px] font-semibold text-foreground">{s.title}</p>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+                {brandError && <p className="mt-2 text-xs text-red-600">{brandError}</p>}
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <span>Try:</span>
+                  {EXAMPLE_DOMAINS.map((d) => (
+                    <button key={d} type="button" onClick={() => { setUrl(d); void loadBrand(d); }} className="rounded-full bg-card px-2.5 py-1 font-medium text-muted-foreground ring-1 ring-border transition hover:bg-white/10 hover:text-foreground">{d}</button>
+                  ))}
+                </div>
+              </form>
+            </div>
 
-        <footer className="mt-8 border-t border-border">
-          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-5 py-8 text-xs text-muted-foreground sm:flex-row">
-            <Logo />
-            <p>Built with the <a href="https://context.dev" className="font-medium text-muted-foreground hover:text-primary">Context.dev Brand API</a> · © {new Date().getFullYear()} Context.dev, Inc.</p>
-          </div>
-        </footer>
+            {/* logos as a warped floor grounding the hero */}
+            <div className="relative mt-12 sm:mt-14">
+              <WarpedMarquee />
+            </div>
+          </section>
         </div>
         <FortuneCookie />
       </div>

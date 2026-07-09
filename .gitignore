@@ -36,3 +36,11 @@ env/
 *.sln
 *.swp
 
+# Next.js build output & caches
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+
