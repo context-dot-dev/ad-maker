@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import ImageMouseTrail from "@/components/ui/mousetrail";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,7 +26,8 @@ type BrandAssets = {
 
 type FormatId = "x_banner" | "li_post" | "li_banner" | "ad_16_9";
 type StyleId = "clean" | "bold" | "minimal" | "playful" | "elegant";
-type Result = { format: FormatId; url: string };
+type RenderMode = "poster" | "artwork" | "art";
+type Result = { format: FormatId; url: string; mode: RenderMode; headline: string; sub: string; cta: string };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,179 @@ function PoweredBand() {
   );
 }
 
+// ── Ad compositor ───────────────────────────────────────────────────────────────
+// For wide banners the model paints ONLY the background; we lay the typography here
+// on a full-resolution canvas so kerning/alignment are pixel-perfect every time.
+
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+  const words = (text || "").split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const test = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(test).width <= maxWidth || !cur) {
+      cur = test;
+    } else {
+      lines.push(cur);
+      cur = w;
+      if (lines.length === maxLines - 1) break;
+    }
+  }
+  if (cur && lines.length < maxLines) lines.push(cur);
+  return lines;
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+type AdPaint = {
+  W: number; H: number; img: HTMLImageElement;
+  mode: RenderMode; headline: string; sub: string; cta: string;
+  brandName: string; domain: string; primary: string; fontFamily: string;
+};
+
+function drawAd(ctx: CanvasRenderingContext2D, d: AdPaint) {
+  const { W, H, img, fontFamily: ff } = d;
+
+  // 1) cover-crop the artwork to fill the exact format
+  ctx.clearRect(0, 0, W, H);
+  if (img.width && img.height) {
+    const scale = Math.max(W / img.width, H / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  }
+
+  // poster (baked text) & pure art get no overlay
+  if (d.mode !== "artwork") return;
+
+  // 2) legibility scrim on the left text zone
+  const scrim = ctx.createLinearGradient(0, 0, W, 0);
+  scrim.addColorStop(0, "rgba(6,8,15,0.86)");
+  scrim.addColorStop(0.42, "rgba(6,8,15,0.58)");
+  scrim.addColorStop(0.72, "rgba(6,8,15,0)");
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, 0, W, H);
+
+  const pad = Math.round(W * 0.055);
+  const zoneW = W * 0.52 - pad;
+  const aspect = W / H;
+  const maxLines = aspect >= 2 ? 2 : 3;
+
+  const hSize = Math.round(Math.min(W * 0.052, H * 0.16));
+  const sSize = Math.round(hSize * 0.4);
+  const wSize = Math.max(16, Math.round(hSize * 0.32));
+  const hLineH = hSize * 1.06;
+  const sLineH = sSize * 1.32;
+
+  ctx.textBaseline = "top";
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = Math.round(W * 0.006);
+
+  ctx.font = `800 ${hSize}px ${ff}`;
+  const hLines = wrapLines(ctx, d.headline, zoneW, maxLines);
+  ctx.font = `500 ${sSize}px ${ff}`;
+  const sLines = d.sub ? wrapLines(ctx, d.sub, zoneW, 2) : [];
+
+  const cta = d.cta.trim();
+  const cSize = Math.round(sSize * 0.9);
+  ctx.font = `700 ${cSize}px ${ff}`;
+  const ctaTextW = cta ? ctx.measureText(cta).width : 0;
+  const ctaH = cta ? Math.round(cSize * 2.1) : 0;
+  const ctaW = cta ? Math.round(ctaTextW + cSize * 1.8) : 0;
+
+  const gapHS = sLines.length ? hSize * 0.42 : 0;
+  const gapCTA = cta ? hSize * 0.55 : 0;
+  const total = hLines.length * hLineH + gapHS + sLines.length * sLineH + gapCTA + ctaH;
+  // leave room for the wordmark pinned bottom-left
+  let y = Math.max(pad, (H - total) / 2 - hSize * 0.2);
+
+  ctx.font = `800 ${hSize}px ${ff}`;
+  ctx.fillStyle = "#ffffff";
+  for (const line of hLines) { ctx.fillText(line, pad, y); y += hLineH; }
+
+  if (sLines.length) {
+    y += gapHS;
+    ctx.font = `500 ${sSize}px ${ff}`;
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    for (const line of sLines) { ctx.fillText(line, pad, y); y += sLineH; }
+  }
+
+  if (cta) {
+    y += gapCTA;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = d.primary;
+    roundRect(ctx, pad, y, ctaW, ctaH, ctaH / 2);
+    ctx.fill();
+    ctx.font = `700 ${cSize}px ${ff}`;
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    ctx.fillText(cta, pad + (ctaW - ctaTextW) / 2, y + ctaH / 2 + 1);
+    ctx.textBaseline = "top";
+  }
+
+  // 3) wordmark + domain pinned bottom-left
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = Math.round(W * 0.005);
+  const wy = H - pad - wSize;
+  ctx.font = `700 ${wSize}px ${ff}`;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(d.brandName, pad, wy);
+  const bw = ctx.measureText(d.brandName).width;
+  ctx.font = `500 ${wSize}px ${ff}`;
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillText(d.domain, pad + bw + wSize * 0.6, wy);
+  ctx.shadowBlur = 0;
+}
+
+function AdCanvas({ index, r, fmt, brand, register }: {
+  index: number;
+  r: Result;
+  fmt: (typeof FORMATS)[number];
+  brand: BrandAssets;
+  register: (i: number, c: HTMLCanvasElement | null) => void;
+}) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    canvas.width = fmt.w;
+    canvas.height = fmt.h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    let cancelled = false;
+    const img = new Image();
+    const paint = () => {
+      if (cancelled) return;
+      drawAd(ctx, {
+        W: fmt.w, H: fmt.h, img,
+        mode: r.mode, headline: r.headline, sub: r.sub, cta: r.cta,
+        brandName: brand.name ?? brand.domain,
+        domain: brand.domain,
+        primary: brand.primaryColor ?? brand.colors[0]?.hex ?? "#2663ec",
+        fontFamily: (typeof window !== "undefined" && getComputedStyle(document.body).fontFamily) || "Inter, sans-serif",
+      });
+      register(index, canvas);
+    };
+    img.onload = () => {
+      if (document.fonts?.ready) document.fonts.ready.then(paint).catch(paint);
+      else paint();
+    };
+    img.onerror = paint;
+    img.src = r.url;
+    return () => { cancelled = true; register(index, null); };
+  }, [index, r, fmt, brand, register]);
+
+  return <canvas ref={ref} className="block h-auto w-full" style={{ aspectRatio: String(fmt.ratio) }} aria-label={`${fmt.label} ad`} />;
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Page() {
@@ -261,23 +435,39 @@ export default function Page() {
   function toggleSelectAll() {
     setChosen(allChosen ? new Set() : new Set(results.map((_, i) => i)));
   }
-  // Export at the format's exact pixel dimensions (cover-crop the generated image).
+
+  // Each AdCanvas registers its full-res canvas here so downloads are pixel-identical
+  // to what's on screen (artwork + our rendered typography).
+  const canvasMap = useRef<Record<number, HTMLCanvasElement>>({});
+  const registerCanvas = useCallback((i: number, c: HTMLCanvasElement | null) => {
+    if (c) canvasMap.current[i] = c;
+    else delete canvasMap.current[i];
+  }, []);
+
   function downloadImage(r: Result, i: number) {
     const fmt = formatMeta(r.format);
     const name = `${(activeBrand.name ?? activeBrand.domain).replace(/\W+/g, "-").toLowerCase()}-${fmt.id}-${i + 1}.png`;
+    const canvas = canvasMap.current[i];
+    if (canvas) {
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = name;
+      a.click();
+      return;
+    }
+    // fallback: cover-crop the raw image
     const img = new Image();
-    img.crossOrigin = "anonymous";
     img.onload = () => {
       const { w, h } = fmt;
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext("2d");
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
       if (!ctx) return;
       const scale = Math.max(w / img.width, h / img.height);
       const dw = img.width * scale, dh = img.height * scale;
       ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
       const a = document.createElement("a");
-      a.href = canvas.toDataURL("image/png");
+      a.href = c.toDataURL("image/png");
       a.download = name;
       a.click();
     };
@@ -371,25 +561,31 @@ export default function Page() {
           <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
             {/* Formats — multi-select, up to 3 */}
             <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-1 flex items-center justify-between">
                 <p className="text-sm font-semibold text-foreground">Formats</p>
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-brand-washed ring-1 ring-primary/30">{selectedFormats.length}/3</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <p className="mb-3.5 text-[12px] leading-relaxed text-muted-foreground">Pick up to 3 — one distinct on-brand ad per format.</p>
+              <div className="space-y-2">
                 {FORMATS.map((f) => {
                   const isSel = selectedFormats.includes(f.id);
                   const disabled = !isSel && selectedFormats.length >= 3;
+                  const shapeW = f.ratio >= 2 ? "86%" : f.ratio > 1 ? "80%" : "58%";
                   return (
                     <button key={f.id} onClick={() => toggleFormat(f.id)} disabled={disabled}
-                      className={`relative flex items-center gap-2.5 rounded-xl border p-2.5 pr-6 text-left transition ${isSel ? "border-primary bg-primary/15" : "border-border bg-white/[0.02] hover:border-primary/50"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}>
-                      <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${isSel ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>{f.icon}</span>
-                      <div className="min-w-0 leading-tight"><p className="text-[12px] font-semibold text-foreground">{f.label}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{f.dims}</p></div>
-                      {isSel && <span className="absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-primary text-white"><CheckIcon className="size-2.5" /></span>}
+                      className={`flex w-full items-center gap-3.5 rounded-xl border p-3 text-left transition ${isSel ? "border-primary bg-primary/10" : "border-border bg-white/[0.02] hover:border-primary/40"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}>
+                      <span className="grid h-10 w-14 shrink-0 place-items-center rounded-lg bg-muted/60 ring-1 ring-inset ring-border">
+                        <span className={`rounded-[3px] transition ${isSel ? "bg-gradient-to-br from-brand-blue to-brand-purple" : "bg-muted-foreground/40"}`} style={{ aspectRatio: String(f.ratio), width: shapeW }} />
+                      </span>
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <p className="text-[13px] font-semibold text-foreground">{f.label}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{f.dims}</p>
+                      </div>
+                      <span className={`grid size-5 shrink-0 place-items-center rounded-full border transition ${isSel ? "border-primary bg-primary text-white" : "border-border text-transparent"}`}><CheckIcon className="size-3" /></span>
                     </button>
                   );
                 })}
               </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Pick up to 3 — we generate one distinct on-brand ad for each.</p>
             </div>
 
             {/* Customize */}
@@ -518,9 +714,8 @@ export default function Page() {
                         </div>
                       </div>
                       <div className="p-4">
-                        <div className={`group relative mx-auto w-full ${maxW} overflow-hidden rounded-lg ring-1 ring-border`} style={{ aspectRatio: String(f.ratio) }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={r.url} alt={`${f.label} ad`} className="size-full object-cover" />
+                        <div className={`group relative mx-auto w-full ${maxW} overflow-hidden rounded-lg ring-1 ring-border`}>
+                          <AdCanvas index={i} r={r} fmt={f} brand={b} register={registerCanvas} />
                         </div>
                       </div>
                     </div>

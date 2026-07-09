@@ -2,9 +2,9 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { selectReferences } from "@/lib/generate/references";
 import { copywriter } from "@/lib/generate/copywriter";
-import { buildPosterPrompt } from "@/lib/generate/prompt-builder";
+import { buildPosterPrompt, buildArtworkPrompt } from "@/lib/generate/prompt-builder";
 import { downloadReferences, renderPoster } from "@/lib/generate/image-generator";
-import { FORMAT_SPEC, type FormatId } from "@/lib/generate/presets";
+import { FORMAT_SPEC, type FormatId, type RenderMode } from "@/lib/generate/presets";
 import type { Brand, Copy } from "@/lib/generate/types";
 
 export const maxDuration = 300;
@@ -26,6 +26,15 @@ const requestSchema = z.object({
   textFree: z.boolean().default(false),
   formats: z.array(z.enum(formatIds)).min(1).max(3),
 });
+
+type GeneratedAd = {
+  format: FormatId;
+  url: string;
+  mode: RenderMode;
+  headline: string;
+  sub: string;
+  cta: string;
+};
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -51,18 +60,29 @@ export async function POST(req: Request) {
     const candidateUrls = selectReferences({ backdrops: d.backdrops, logoUrl: d.logoUrl });
     const downloaded = await downloadReferences(candidateUrls);
     const refs = downloaded.slice(0, 1);
+    const hasRefs = refs.length > 0;
 
+    // Copy for every ad (unless the user wants pure artwork).
     const copies: Copy[] = d.textFree ? [] : await copywriter(openai, brand, d.formats.length);
+    const cta = d.ctaOverride.trim();
 
-    const cta = d.ctaOverride.trim() || undefined;
-    const images = await Promise.all(
-      d.formats.map((format, i) => {
+    const images: GeneratedAd[] = await Promise.all(
+      d.formats.map(async (format, i): Promise<GeneratedAd> => {
+        const spec = FORMAT_SPEC[format];
+        const mode: RenderMode = d.textFree ? "art" : spec.mode;
+
         const copy: Copy = {
           headline: d.mainMessage.trim() || copies[i]?.headline || "",
           sub: d.subMessage.trim() || copies[i]?.sub || "",
         };
-        const prompt = buildPosterPrompt({ brand, copy, format, hasRefs: refs.length > 0, textFree: d.textFree, cta });
-        return renderPoster({ apiKey: key, prompt, format, refs }).then((url) => ({ format, url }));
+
+        const prompt =
+          mode === "poster"
+            ? buildPosterPrompt({ brand, copy, hasRefs, cta: cta || undefined })
+            : buildArtworkPrompt({ brand, format, hasRefs, reserveLeft: mode === "artwork" });
+
+        const url = await renderPoster({ apiKey: key, prompt, format, refs });
+        return { format, url, mode, headline: copy.headline, sub: copy.sub, cta };
       }),
     );
 
