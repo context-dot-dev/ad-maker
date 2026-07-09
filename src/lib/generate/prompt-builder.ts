@@ -3,36 +3,70 @@ import type { FormatId } from "./presets";
 import { FORMAT_SPEC } from "./presets";
 
 /**
- * POSTER prompt (1:1 only). gpt-image-1 renders the whole thing, text included —
- * it's genuinely good at square posters. We ask it to continue the brand's
- * existing campaign rather than invent a new look.
+ * POSTER prompt — gpt-image-1 renders the WHOLE ad, text included. It's great at
+ * this for 1:1. For wide banners the trick is the fixed output size: the model can
+ * only paint 1536x1024, which we then crop to (e.g.) 3:1. So we make the prompt
+ * CROP-AWARE — force every word into the horizontal safe band that survives the
+ * crop, and pad the top/bottom with plain background we can throw away. That's
+ * what stops the "stretched, mis-aligned" banner text.
  */
 export function buildPosterPrompt(opts: {
   brand: Brand;
   copy: Copy;
+  format: FormatId;
   hasRefs: boolean;
   cta?: string;
 }): string {
-  const { brand, copy, hasRefs, cta } = opts;
+  const { brand, copy, format, hasRefs, cta } = opts;
+  const spec = FORMAT_SPEC[format];
   const parts: string[] = [];
 
-  if (hasRefs) {
+  // shape + how the final crop works
+  if (spec.aspect >= 2.5) {
     parts.push(
-      `The attached image is a real campaign asset from "${brand.name}" (${brand.domain}). Imagine you have just joined ${brand.name}'s design team. Create the NEXT poster that belongs in this exact campaign — someone scrolling ${brand.domain} should believe the same design team made it.`,
-      `Reuse the same illustration language, spacing, color relationships, lighting, texture, typography hierarchy and compositional rhythm. Do NOT introduce new visual motifs. Do NOT simplify. Do NOT reinterpret. Continue the visual system.`,
+      `Design a complete, ultra-wide ${Math.round(spec.aspect)}:1 marketing banner for "${brand.name}" (${brand.domain}).`,
+      `CRITICAL CROP RULE: the square-ish image you produce will be cropped to a thin horizontal ${Math.round(spec.aspect)}:1 letterbox taken from the VERTICAL CENTER. Therefore place the ENTIRE design — headline, supporting line, wordmark, and all key visuals — inside the horizontal center band (roughly the middle 42% of the height). Fill the top ~30% and bottom ~30% with nothing but a plain, continuous extension of the same background/color so it can be cropped away with zero loss.`,
+    );
+  } else if (spec.aspect > 1.2) {
+    parts.push(
+      `Design a complete 16:9 landscape ad for "${brand.name}" (${brand.domain}).`,
+      `The image will be cropped slightly to 16:9 from the center — keep all text and key elements within the central area with comfortable top/bottom margins.`,
     );
   } else {
     parts.push(
-      `Create a premium square (1:1) brand poster for "${brand.name}" (${brand.domain}) that looks like it belongs on their own website.${brand.description ? ` ${brand.description}.` : ""}`,
+      `Design a complete premium square (1:1) brand poster for "${brand.name}" (${brand.domain}).`,
+    );
+  }
+  if (brand.description) parts.push(`${brand.description}.`);
+
+  if (hasRefs) {
+    parts.push(
+      `The attached image is a real campaign asset from ${brand.name}. Match it exactly — same illustration language, color relationships, lighting, texture and typographic feel. Continue the campaign; do not reinterpret or simplify it.`,
     );
   }
 
+  // ── STRICT TYPOGRAPHY SPEC ─────────────────────────────────────────────────
+  // The single most important part. gpt-image-1 will happily produce warped,
+  // misspelled, double-printed text unless it is told, forcefully and in detail,
+  // exactly how a real designer sets type. So we do.
   parts.push(
-    `Set this copy in the brand's OWN typographic style: headline "${copy.headline}"; a small supporting line "${copy.sub}"; a small "${brand.name}" wordmark and "${brand.domain}".${cta ? ` A small plain-text label "${cta}" (NOT a button).` : ""} Perfectly spelled, real letters only, no other text.`,
-    `Do NOT add generic icons, checkmarks, UI mockups, dashboards, charts, buttons, stock-photo people, watermarks, borders or frames.`,
+    `TEXT IS THE #1 PRIORITY. The typography must look like it was set by a professional designer in a tool like Figma — clean, sharp, and flawless. Follow these rules exactly:`,
+    `• Render EXACTLY this text and NOTHING else:`,
+    `   HEADLINE (largest, bold): "${copy.headline}"`,
+    copy.sub ? `   SUBHEADLINE (about 40% of the headline size, regular weight): "${copy.sub}"` : "",
+    `   WORDMARK (small): "${brand.name}"   plus the URL "${brand.domain}"`,
+    cta ? `   CTA (small pill or plain label): "${cta}"` : "",
+    `• Spelling must be 100% correct, letter for letter. Do NOT invent, add, translate, repeat, or drop any words. No lorem ipsus, no random extra text anywhere in the image.`,
+    `• Use ONE clean, modern geometric sans-serif typeface (Inter / Geist / Helvetica style) for everything. Consistent, even letterforms — every "a", "e", "s" identical.`,
+    `• Left-align all text on a single shared left margin. Tight, professional kerning; comfortable line-height (~1.15); no letter overlaps, no touching characters, no squished or stretched glyphs, no warping, no faux-3D, no drop shadows, no outlines.`,
+    `• Strong contrast: place text over the calmest part of the background; if needed darken/lighten that area slightly so every character is perfectly legible. High legibility beats decoration.`,
+    `• Clear hierarchy and breathing room: headline on 1–2 lines, generous padding around the text block, plenty of negative space. Do not crowd the frame.`,
+    `• Keep the headline short on each line — never hyphenate or break a word across lines.`,
+    `The final text must be crisp enough to screenshot and ship. If any letter would look wrong, make it simpler and cleaner instead.`,
+    `Do NOT add generic UI mockups, dashboards, charts, icons, checkmarks, buttons, stock-photo people, watermarks, borders, frames, or any decorative gibberish text.`,
   );
 
-  return parts.join("\n");
+  return parts.filter(Boolean).join("\n");
 }
 
 /**
@@ -65,7 +99,7 @@ export function buildArtworkPrompt(opts: {
 
   if (reserveLeft) {
     parts.push(
-      `Keep the LEFT ~45% as calm, near-empty negative space (soft gradient / open area) so text can be placed there later. Concentrate all visual interest on the RIGHT side.`,
+      `Create a natural composition with one dominant focal region and generous, organic negative space where a headline could sit comfortably later. The empty area must feel like an intentional part of the composition — do NOT create an obvious blank rectangle or split the frame into "empty half / busy half". Keep it balanced, editorial and premium.`,
     );
   }
 

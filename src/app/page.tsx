@@ -24,18 +24,20 @@ type BrandAssets = {
   creditsRemaining: number | null;
 };
 
-type FormatId = "x_banner" | "li_post" | "li_banner" | "ad_16_9";
+type FormatId = "li_post" | "x_banner" | "li_banner";
 type StyleId = "clean" | "bold" | "minimal" | "playful" | "elegant";
 type RenderMode = "poster" | "artwork" | "art";
-type Result = { format: FormatId; url: string; mode: RenderMode; headline: string; sub: string; cta: string };
+type TextLayout = { x: number; y: number; w: number; h: number; align: "left" | "center" | "right"; theme: "light" | "dark"; scrim: boolean };
+type Result = { format: FormatId; url: string; mode: RenderMode; headline: string; sub: string; cta: string; layout?: TextLayout };
+
+const DEFAULT_LAYOUT: TextLayout = { x: 0.06, y: 0.14, w: 0.5, h: 0.72, align: "left", theme: "light", scrim: true };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const FORMATS: { id: FormatId; label: string; dims: string; ratio: number; w: number; h: number; icon: React.ReactNode }[] = [
-  { id: "x_banner",  label: "X Banner",        dims: "1500 × 500",  ratio: 3 / 1,      w: 1500, h: 500,  icon: <XIcon /> },
-  { id: "li_post",   label: "LinkedIn Post",   dims: "1200 × 1200", ratio: 1,          w: 1200, h: 1200, icon: <LinkedInIcon /> },
-  { id: "li_banner", label: "LinkedIn Banner", dims: "1584 × 396",  ratio: 1584 / 396, w: 1584, h: 396,  icon: <ImageIcon /> },
-  { id: "ad_16_9",   label: "Ad · 16:9",       dims: "1200 × 675",  ratio: 16 / 9,     w: 1200, h: 675,  icon: <ImageIcon /> },
+const FORMATS: { id: FormatId; label: string; dims: string; ratio: number; w: number; h: number; note: string; icon: React.ReactNode }[] = [
+  { id: "li_post",   label: "LinkedIn Post",   dims: "1200 × 1200", ratio: 1,          w: 1200, h: 1200, note: "Full ad with headline", icon: <LinkedInIcon /> },
+  { id: "x_banner",  label: "X Banner",        dims: "1500 × 500",  ratio: 3 / 1,      w: 1500, h: 500,  note: "Backdrop only",        icon: <XIcon /> },
+  { id: "li_banner", label: "LinkedIn Banner", dims: "1584 × 396",  ratio: 1584 / 396, w: 1584, h: 396,  note: "Backdrop only",        icon: <ImageIcon /> },
 ];
 
 const formatMeta = (f: FormatId) => FORMATS.find((x) => x.id === f)!;
@@ -208,7 +210,13 @@ type AdPaint = {
   W: number; H: number; img: HTMLImageElement;
   mode: RenderMode; headline: string; sub: string; cta: string;
   brandName: string; domain: string; primary: string; fontFamily: string;
+  layout: TextLayout;
 };
+
+/** Try to set canvas letterSpacing; harmless no-op on browsers that lack it. */
+function setTracking(ctx: CanvasRenderingContext2D, px: number) {
+  try { (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${px}px`; } catch { /* ignore */ }
+}
 
 function drawAd(ctx: CanvasRenderingContext2D, d: AdPaint) {
   const { W, H, img, fontFamily: ff } = d;
@@ -224,83 +232,115 @@ function drawAd(ctx: CanvasRenderingContext2D, d: AdPaint) {
   // poster (baked text) & pure art get no overlay
   if (d.mode !== "artwork") return;
 
-  // 2) legibility scrim on the left text zone
-  const scrim = ctx.createLinearGradient(0, 0, W, 0);
-  scrim.addColorStop(0, "rgba(6,8,15,0.86)");
-  scrim.addColorStop(0.42, "rgba(6,8,15,0.58)");
-  scrim.addColorStop(0.72, "rgba(6,8,15,0)");
-  ctx.fillStyle = scrim;
-  ctx.fillRect(0, 0, W, H);
+  const L = d.layout;
+  const light = L.theme === "light"; // light text over darker area
+  const fg = light ? "#ffffff" : "#0b0b12";
+  const fgSub = light ? "rgba(255,255,255,0.85)" : "rgba(11,11,18,0.72)";
+  const fgDim = light ? "rgba(255,255,255,0.62)" : "rgba(11,11,18,0.55)";
 
-  const pad = Math.round(W * 0.055);
-  const zoneW = W * 0.52 - pad;
-  const aspect = W / H;
-  const maxLines = aspect >= 2 ? 2 : 3;
+  // 2) optional contrast scrim, biased to the region's side
+  if (L.scrim) {
+    const cx = (L.x + L.w / 2) * W;
+    const fromLeft = cx < W / 2;
+    const base = light ? "6,8,15" : "255,255,255";
+    const g = ctx.createLinearGradient(fromLeft ? 0 : W, 0, fromLeft ? W : 0, 0);
+    g.addColorStop(0, `rgba(${base},0.82)`);
+    g.addColorStop(0.5, `rgba(${base},0.4)`);
+    g.addColorStop(0.85, `rgba(${base},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
 
-  const hSize = Math.round(Math.min(W * 0.052, H * 0.16));
-  const sSize = Math.round(hSize * 0.4);
-  const wSize = Math.max(16, Math.round(hSize * 0.32));
-  const hLineH = hSize * 1.06;
-  const sLineH = sSize * 1.32;
-
-  ctx.textBaseline = "top";
-  ctx.shadowColor = "rgba(0,0,0,0.4)";
-  ctx.shadowBlur = Math.round(W * 0.006);
-
-  ctx.font = `800 ${hSize}px ${ff}`;
-  const hLines = wrapLines(ctx, d.headline, zoneW, maxLines);
-  ctx.font = `500 ${sSize}px ${ff}`;
-  const sLines = d.sub ? wrapLines(ctx, d.sub, zoneW, 2) : [];
+  // 3) region in px (with a little inner breathing room)
+  const inset = Math.round(W * 0.012);
+  const rx = L.x * W + inset;
+  const ry = L.y * H + inset;
+  const rw = Math.max(80, L.w * W - inset * 2);
+  const rh = Math.max(60, L.h * H - inset * 2);
+  const wSize = Math.max(15, Math.round(Math.min(rw * 0.05, W * 0.018)));
+  const bottomReserve = wSize * 2.4; // for the wordmark row
 
   const cta = d.cta.trim();
-  const cSize = Math.round(sSize * 0.9);
-  ctx.font = `700 ${cSize}px ${ff}`;
-  const ctaTextW = cta ? ctx.measureText(cta).width : 0;
-  const ctaH = cta ? Math.round(cSize * 2.1) : 0;
-  const ctaW = cta ? Math.round(ctaTextW + cSize * 1.8) : 0;
 
-  const gapHS = sLines.length ? hSize * 0.42 : 0;
-  const gapCTA = cta ? hSize * 0.55 : 0;
-  const total = hLines.length * hLineH + gapHS + sLines.length * sLineH + gapCTA + ctaH;
-  // leave room for the wordmark pinned bottom-left
-  let y = Math.max(pad, (H - total) / 2 - hSize * 0.2);
+  // 4) fit the type to the region — shrink until headline + sub (+cta) fit
+  ctx.textBaseline = "top";
+  const maxLines = W / H >= 2 ? 2 : 3;
+  let chosen: { hSize: number; sSize: number; hLines: string[]; sLines: string[]; hLineH: number; sLineH: number; gapHS: number } | null = null;
+  for (let hSize = Math.round(Math.min(rw * 0.14, rh * 0.5)); hSize >= 14; hSize -= 2) {
+    const sSize = Math.max(12, Math.round(hSize * 0.4));
+    setTracking(ctx, -hSize * 0.02);
+    ctx.font = `700 ${hSize}px ${ff}`;
+    const hLines = wrapLines(ctx, d.headline, rw, maxLines);
+    setTracking(ctx, 0);
+    ctx.font = `500 ${sSize}px ${ff}`;
+    const sLines = d.sub ? wrapLines(ctx, d.sub, rw, 2) : [];
+    const hLineH = hSize * 1.12;
+    const sLineH = sSize * 1.32;
+    const gapHS = sLines.length ? hSize * 0.5 : 0;
+    const ctaH = cta ? sSize * 2.1 + hSize * 0.55 : 0;
+    const total = hLines.length * hLineH + gapHS + sLines.length * sLineH + ctaH;
+    if (total <= rh - bottomReserve || hSize <= 14) {
+      chosen = { hSize, sSize, hLines, sLines, hLineH, sLineH, gapHS };
+      break;
+    }
+  }
+  if (!chosen) return;
+  const { hSize, sSize, hLines, sLines, hLineH, sLineH, gapHS } = chosen;
 
-  ctx.font = `800 ${hSize}px ${ff}`;
-  ctx.fillStyle = "#ffffff";
-  for (const line of hLines) { ctx.fillText(line, pad, y); y += hLineH; }
+  // alignment anchor within the region
+  const anchorX = L.align === "center" ? rx + rw / 2 : L.align === "right" ? rx + rw : rx;
+  ctx.textAlign = L.align;
+
+  ctx.shadowColor = light ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.35)";
+  ctx.shadowBlur = Math.round(W * 0.005);
+
+  let y = ry;
+  setTracking(ctx, -hSize * 0.02);
+  ctx.font = `700 ${hSize}px ${ff}`;
+  ctx.fillStyle = fg;
+  for (const line of hLines) { ctx.fillText(line, anchorX, y); y += hLineH; }
+  setTracking(ctx, 0);
 
   if (sLines.length) {
     y += gapHS;
     ctx.font = `500 ${sSize}px ${ff}`;
-    ctx.fillStyle = "rgba(255,255,255,0.82)";
-    for (const line of sLines) { ctx.fillText(line, pad, y); y += sLineH; }
+    ctx.fillStyle = fgSub;
+    for (const line of sLines) { ctx.fillText(line, anchorX, y); y += sLineH; }
   }
 
   if (cta) {
-    y += gapCTA;
+    y += hSize * 0.55;
     ctx.shadowBlur = 0;
+    const cSize = Math.round(sSize * 0.92);
+    ctx.font = `600 ${cSize}px ${ff}`;
+    const ctaTextW = ctx.measureText(cta).width;
+    const ctaW = ctaTextW + cSize * 1.8;
+    const ctaH = cSize * 2.1;
+    const ctaX = L.align === "center" ? anchorX - ctaW / 2 : L.align === "right" ? anchorX - ctaW : anchorX;
     ctx.fillStyle = d.primary;
-    roundRect(ctx, pad, y, ctaW, ctaH, ctaH / 2);
+    roundRect(ctx, ctaX, y, ctaW, ctaH, ctaH / 2);
     ctx.fill();
-    ctx.font = `700 ${cSize}px ${ff}`;
     ctx.fillStyle = "#ffffff";
     ctx.textBaseline = "middle";
-    ctx.fillText(cta, pad + (ctaW - ctaTextW) / 2, y + ctaH / 2 + 1);
+    ctx.fillText(cta, ctaX + ctaW / 2, y + ctaH / 2 + 1);
+    ctx.textAlign = L.align;
     ctx.textBaseline = "top";
   }
 
-  // 3) wordmark + domain pinned bottom-left
-  ctx.shadowColor = "rgba(0,0,0,0.4)";
-  ctx.shadowBlur = Math.round(W * 0.005);
-  const wy = H - pad - wSize;
-  ctx.font = `700 ${wSize}px ${ff}`;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(d.brandName, pad, wy);
+  // 5) wordmark + domain pinned to the region's bottom
+  ctx.textAlign = "left";
+  ctx.shadowColor = light ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.3)";
+  ctx.shadowBlur = Math.round(W * 0.004);
+  const wy = ry + rh - wSize;
+  ctx.font = `600 ${wSize}px ${ff}`;
+  ctx.fillStyle = fg;
+  ctx.fillText(d.brandName, rx, wy);
   const bw = ctx.measureText(d.brandName).width;
   ctx.font = `500 ${wSize}px ${ff}`;
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.fillText(d.domain, pad + bw + wSize * 0.6, wy);
+  ctx.fillStyle = fgDim;
+  ctx.fillText(d.domain, rx + bw + wSize * 0.6, wy);
   ctx.shadowBlur = 0;
+  ctx.textAlign = "left";
 }
 
 function AdCanvas({ index, r, fmt, brand, register }: {
@@ -328,7 +368,8 @@ function AdCanvas({ index, r, fmt, brand, register }: {
         brandName: brand.name ?? brand.domain,
         domain: brand.domain,
         primary: brand.primaryColor ?? brand.colors[0]?.hex ?? "#2663ec",
-        fontFamily: (typeof window !== "undefined" && getComputedStyle(document.body).fontFamily) || "Inter, sans-serif",
+        fontFamily: (typeof window !== "undefined" && getComputedStyle(document.body).fontFamily) || "Geist, sans-serif",
+        layout: r.layout ?? DEFAULT_LAYOUT,
       });
       register(index, canvas);
     };
@@ -355,7 +396,7 @@ export default function Page() {
   const [brand, setBrand] = useState<BrandAssets | null>(null);
   const [pageMarkdown, setPageMarkdown] = useState("");
 
-  const [selectedFormats, setSelectedFormats] = useState<FormatId[]>(["x_banner", "li_post", "ad_16_9"]);
+  const [selectedFormats, setSelectedFormats] = useState<FormatId[]>(["li_post", "x_banner", "li_banner"]);
   const [mainMessage, setMainMessage] = useState("");
   const [subMessage, setSubMessage] = useState("");
   const [style, setStyle] = useState<StyleId>("clean");
@@ -579,7 +620,7 @@ export default function Page() {
                       </span>
                       <div className="min-w-0 flex-1 leading-tight">
                         <p className="text-[13px] font-semibold text-foreground">{f.label}</p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">{f.dims}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{f.dims} · {f.note}</p>
                       </div>
                       <span className={`grid size-5 shrink-0 place-items-center rounded-full border transition ${isSel ? "border-primary bg-primary text-white" : "border-border text-transparent"}`}><CheckIcon className="size-3" /></span>
                     </button>

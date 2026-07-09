@@ -4,6 +4,7 @@ import { selectReferences } from "@/lib/generate/references";
 import { copywriter } from "@/lib/generate/copywriter";
 import { buildPosterPrompt, buildArtworkPrompt } from "@/lib/generate/prompt-builder";
 import { downloadReferences, renderPoster } from "@/lib/generate/image-generator";
+import { DEFAULT_LAYOUT, type TextLayout } from "@/lib/generate/layout-planner";
 import { FORMAT_SPEC, type FormatId, type RenderMode } from "@/lib/generate/presets";
 import type { Brand, Copy } from "@/lib/generate/types";
 
@@ -34,6 +35,7 @@ type GeneratedAd = {
   headline: string;
   sub: string;
   cta: string;
+  layout: TextLayout;
 };
 
 export async function POST(req: Request) {
@@ -62,27 +64,35 @@ export async function POST(req: Request) {
     const refs = downloaded.slice(0, 1);
     const hasRefs = refs.length > 0;
 
-    // Copy for every ad (unless the user wants pure artwork).
-    const copies: Copy[] = d.textFree ? [] : await copywriter(openai, brand, d.formats.length);
     const cta = d.ctaOverride.trim();
 
+    // Copy is only needed for text posters (banners are pure backdrops now).
+    const posterCount = d.formats.filter((f) => !d.textFree && FORMAT_SPEC[f].mode === "poster").length;
+    const copies: Copy[] = posterCount > 0 ? await copywriter(openai, brand, posterCount) : [];
+
+    let pIdx = 0;
     const images: GeneratedAd[] = await Promise.all(
-      d.formats.map(async (format, i): Promise<GeneratedAd> => {
+      d.formats.map(async (format): Promise<GeneratedAd> => {
         const spec = FORMAT_SPEC[format];
         const mode: RenderMode = d.textFree ? "art" : spec.mode;
 
-        const copy: Copy = {
-          headline: d.mainMessage.trim() || copies[i]?.headline || "",
-          sub: d.subMessage.trim() || copies[i]?.sub || "",
-        };
+        let copy: Copy = { headline: "", sub: "" };
+        if (mode === "poster") {
+          copy = {
+            headline: d.mainMessage.trim() || copies[pIdx]?.headline || "",
+            sub: d.subMessage.trim() || copies[pIdx]?.sub || "",
+          };
+          pIdx++;
+        }
 
         const prompt =
-          mode === "poster"
-            ? buildPosterPrompt({ brand, copy, hasRefs, cta: cta || undefined })
-            : buildArtworkPrompt({ brand, format, hasRefs, reserveLeft: mode === "artwork" });
+          mode === "art"
+            ? buildArtworkPrompt({ brand, format, hasRefs, reserveLeft: false })
+            : buildPosterPrompt({ brand, copy, format, hasRefs, cta: cta || undefined });
 
         const url = await renderPoster({ apiKey: key, prompt, format, refs });
-        return { format, url, mode, headline: copy.headline, sub: copy.sub, cta };
+        const layout: TextLayout = DEFAULT_LAYOUT; // poster bakes text; art has none — no overlay
+        return { format, url, mode, headline: copy.headline, sub: copy.sub, cta, layout };
       }),
     );
 

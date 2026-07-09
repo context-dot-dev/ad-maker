@@ -9,10 +9,9 @@
  *               use this because diffusion models mangle typography in extreme ratios.
  */
 export const FORMAT_SPEC = {
-  x_banner:  { label: "X (Twitter) banner", w: 1500, h: 500,  aspect: 3,          canvas: "1536x1024" as const, dalle: "1792x1024" as const, mode: "artwork" as const },
-  li_banner: { label: "LinkedIn banner",    w: 1584, h: 396,  aspect: 1584 / 396, canvas: "1536x1024" as const, dalle: "1792x1024" as const, mode: "artwork" as const },
-  li_post:   { label: "LinkedIn post",      w: 1200, h: 1200, aspect: 1,          canvas: "1024x1024" as const, dalle: "1024x1024" as const, mode: "poster"  as const },
-  ad_16_9:   { label: "16:9 ad",            w: 1200, h: 675,  aspect: 16 / 9,     canvas: "1536x1024" as const, dalle: "1792x1024" as const, mode: "artwork" as const },
+  li_post:   { label: "LinkedIn post",      w: 1200, h: 1200, aspect: 1,          canvas: "1024x1024" as const, dalle: "1024x1024" as const, mode: "poster" as const },
+  x_banner:  { label: "X (Twitter) banner", w: 1500, h: 500,  aspect: 3,          canvas: "1536x1024" as const, dalle: "1792x1024" as const, mode: "art" as const },
+  li_banner: { label: "LinkedIn banner",    w: 1584, h: 396,  aspect: 1584 / 396, canvas: "1536x1024" as const, dalle: "1792x1024" as const, mode: "art" as const },
 } as const;
 
 export type FormatId = keyof typeof FORMAT_SPEC;
