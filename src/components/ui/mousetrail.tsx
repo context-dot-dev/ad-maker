@@ -42,7 +42,10 @@ export default function ImageMouseTrail({
     };
 
     const handle = (x: number, y: number) => {
-      if (Math.hypot(x - last.current.x, y - last.current.y) <= window.innerWidth / distance) return;
+      // Only spawn on the left/right thirds — keep the center (headline) clean.
+      const w = window.innerWidth;
+      if (x > w * 0.32 && x < w * 0.68) return;
+      if (Math.hypot(x - last.current.x, y - last.current.y) <= w / distance) return;
       const len = refs.current.length;
       const lead = refs.current[globalIndex.current % len].current;
       const tail = refs.current[(((globalIndex.current - maxNumberOfImages) % len) + len) % len]?.current;
