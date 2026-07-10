@@ -44,3 +44,6 @@ next-env.d.ts
 *.tsbuildinfo
 .vercel
 
+# Local model bake-off outputs
+bakeoff/
+

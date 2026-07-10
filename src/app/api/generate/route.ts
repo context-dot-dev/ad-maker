@@ -4,9 +4,8 @@ import { selectReferences } from "@/lib/generate/references";
 import { copywriter } from "@/lib/generate/copywriter";
 import { buildPosterPrompt, buildArtworkPrompt } from "@/lib/generate/prompt-builder";
 import { downloadReferences, renderPoster } from "@/lib/generate/image-generator";
-import { DEFAULT_LAYOUT, type TextLayout } from "@/lib/generate/layout-planner";
 import { FORMAT_SPEC, type FormatId, type RenderMode } from "@/lib/generate/presets";
-import type { Brand, Copy } from "@/lib/generate/types";
+import { DEFAULT_LAYOUT, type Brand, type Copy, type TextLayout } from "@/lib/generate/types";
 
 export const maxDuration = 300;
 
