@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { selectReferences } from "@/lib/generate/references";
+import { pickBestReference } from "@/lib/generate/reference-picker";
 import { copywriter } from "@/lib/generate/copywriter";
 import { buildPosterPrompt, buildArtworkPrompt } from "@/lib/generate/prompt-builder";
 import { downloadReferences, renderPoster } from "@/lib/generate/image-generator";
@@ -57,17 +58,23 @@ export async function POST(req: Request) {
   };
 
   try {
-    // ONE strongest reference — avoid averaging multiple assets into AI soup.
-    const candidateUrls = selectReferences({ backdrops: d.backdrops, logoUrl: d.logoUrl });
-    const downloaded = await downloadReferences(candidateUrls);
-    const refs = downloaded.slice(0, 1);
-    const hasRefs = refs.length > 0;
-
     const cta = d.ctaOverride.trim();
-
     // Copy is only needed for text posters (banners are pure backdrops now).
     const posterCount = d.formats.filter((f) => !d.textFree && FORMAT_SPEC[f].mode === "poster").length;
-    const copies: Copy[] = posterCount > 0 ? await copywriter(openai, brand, posterCount) : [];
+
+    // Download every brand asset and write the copy at the same time.
+    const candidateUrls = selectReferences({ backdrops: d.backdrops, logoUrl: d.logoUrl });
+    const [downloaded, copies] = await Promise.all([
+      downloadReferences(candidateUrls),
+      posterCount > 0 ? copywriter(openai, brand, posterCount) : Promise.resolve<Copy[]>([]),
+    ]);
+
+    // Let a vision model choose the ONE strongest asset, then style off just that.
+    // Sending several references to gpt-image-1 makes it blend them into a mess.
+    const candidates = downloaded.slice(0, 4);
+    const best = candidates.length > 1 ? await pickBestReference(openai, brand, candidates) : 0;
+    const refs = candidates.slice(best, best + 1);
+    const refCount = refs.length;
 
     let pIdx = 0;
     const images: GeneratedAd[] = await Promise.all(
@@ -86,8 +93,8 @@ export async function POST(req: Request) {
 
         const prompt =
           mode === "art"
-            ? buildArtworkPrompt({ brand, format, hasRefs, reserveLeft: false })
-            : buildPosterPrompt({ brand, copy, format, hasRefs, cta: cta || undefined });
+            ? buildArtworkPrompt({ brand, format, refCount, reserveLeft: false })
+            : buildPosterPrompt({ brand, copy, format, refCount, cta: cta || undefined });
 
         const url = await renderPoster({ apiKey: key, prompt, format, refs });
         const layout: TextLayout = DEFAULT_LAYOUT; // poster bakes text; art has none — no overlay
