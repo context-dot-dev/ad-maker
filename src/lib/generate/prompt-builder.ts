@@ -3,6 +3,19 @@ import type { FormatId } from "./presets";
 import { FORMAT_SPEC } from "./presets";
 
 /**
+ * How to treat the attached brand assets. When we hand the model more than one, we
+ * tell it to PICK the single strongest and continue that campaign — never average
+ * several assets into a muddy composite.
+ */
+function refsInstruction(brand: Brand, refCount: number): string {
+  if (refCount <= 0) return "";
+  if (refCount === 1) {
+    return `The attached image is a real campaign asset from ${brand.name}. Match it exactly — same illustration language, color relationships, lighting, texture and typographic feel. Continue the campaign; do not reinterpret or simplify it.`;
+  }
+  return `The attached ${refCount} images are real campaign assets from ${brand.name}. Study all of them, then choose the SINGLE strongest, most on-brand one and continue THAT campaign — match its illustration language, color relationships, lighting, texture and feel. Use the others only as light supporting context; never blend or average them into a muddy composite.`;
+}
+
+/**
  * POSTER prompt — gpt-image-1 renders the WHOLE ad, text included. It's great at
  * this for 1:1. For wide banners the trick is the fixed output size: the model can
  * only paint 1536x1024, which we then crop to (e.g.) 3:1. So we make the prompt
@@ -14,10 +27,10 @@ export function buildPosterPrompt(opts: {
   brand: Brand;
   copy: Copy;
   format: FormatId;
-  hasRefs: boolean;
+  refCount: number;
   cta?: string;
 }): string {
-  const { brand, copy, format, hasRefs, cta } = opts;
+  const { brand, copy, format, refCount, cta } = opts;
   const spec = FORMAT_SPEC[format];
   const parts: string[] = [];
 
@@ -39,11 +52,7 @@ export function buildPosterPrompt(opts: {
   }
   if (brand.description) parts.push(`${brand.description}.`);
 
-  if (hasRefs) {
-    parts.push(
-      `The attached image is a real campaign asset from ${brand.name}. Match it exactly — same illustration language, color relationships, lighting, texture and typographic feel. Continue the campaign; do not reinterpret or simplify it.`,
-    );
-  }
+  parts.push(refsInstruction(brand, refCount));
 
   // ── STRICT TYPOGRAPHY SPEC ─────────────────────────────────────────────────
   // The single most important part. gpt-image-1 will happily produce warped,
@@ -77,18 +86,17 @@ export function buildPosterPrompt(opts: {
 export function buildArtworkPrompt(opts: {
   brand: Brand;
   format: FormatId;
-  hasRefs: boolean;
+  refCount: number;
   reserveLeft: boolean;
 }): string {
-  const { brand, format, hasRefs, reserveLeft } = opts;
+  const { brand, format, refCount, reserveLeft } = opts;
   const spec = FORMAT_SPEC[format];
   const ratio = spec.aspect >= 2 ? `an ultra-wide ${Math.round(spec.aspect)}:1` : spec.aspect > 1 ? "a wide 16:9" : "a square";
   const parts: string[] = [];
 
-  if (hasRefs) {
-    parts.push(
-      `The attached image is a real campaign asset from "${brand.name}" (${brand.domain}). Create the NEXT background artwork in this exact visual system — same illustration language, color relationships, lighting, texture and atmosphere. Continue the campaign; do not reinterpret or simplify it.`,
-    );
+  if (refCount > 0) {
+    parts.push(refsInstruction(brand, refCount));
+    parts.push(`Create the NEXT background artwork in this visual system — no text or logos, just the atmosphere.`);
   } else {
     parts.push(
       `Create premium, atmospheric background artwork for a "${brand.name}" (${brand.domain}) marketing campaign that looks like it belongs on their own website.${brand.description ? ` ${brand.description}.` : ""}`,

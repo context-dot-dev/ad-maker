@@ -31,16 +31,23 @@ export async function downloadReferences(urls: string[]): Promise<RefBuffer[]> {
  * STEP 5 — render. Prefers gpt-image-1 with real brand references (images.edit),
  * falls back to plain generation, then dall-e-3.
  */
-export async function renderPoster(opts: { apiKey: string; prompt: string; format: FormatId; refs: RefBuffer[] }): Promise<string> {
-  const { apiKey, prompt, format, refs } = opts;
+export async function renderPoster(opts: {
+  apiKey: string;
+  prompt: string;
+  format: FormatId;
+  refs: RefBuffer[];
+  quality?: "low" | "medium" | "high" | "auto";
+}): Promise<string> {
+  const { apiKey, prompt, format, refs, quality = "medium" } = opts;
   const client = new OpenAI({ apiKey });
   const size = FORMAT_SPEC[format].canvas;
 
-  // 1) Style-reference edit — the brand's real assets guide the output.
+  // 1) Style-reference edit — the brand's real assets guide the output. We hand the
+  // model every raster asset we have and let the prompt tell it to pick the best one.
   if (refs.length > 0) {
     try {
       const files = await Promise.all(refs.map((r) => toFile(r.data, r.name, { type: r.type })));
-      const r = await client.images.edit({ model: "gpt-image-1", image: files, prompt, size, quality: "high" });
+      const r = await client.images.edit({ model: "gpt-image-1", image: files, prompt, size, quality });
       const b64 = r.data?.[0]?.b64_json;
       if (b64) return `data:image/png;base64,${b64}`;
     } catch (err) {
@@ -50,7 +57,7 @@ export async function renderPoster(opts: { apiKey: string; prompt: string; forma
 
   // 2) Plain gpt-image-1.
   try {
-    const r = await client.images.generate({ model: "gpt-image-1", prompt, size, quality: "high" });
+    const r = await client.images.generate({ model: "gpt-image-1", prompt, size, quality });
     const b64 = r.data?.[0]?.b64_json;
     if (b64) return `data:image/png;base64,${b64}`;
   } catch (err) {

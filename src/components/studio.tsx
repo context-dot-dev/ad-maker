@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { Header, FortuneCookie } from "@/components/site-header";
 import { BrandFlex } from "@/components/brand-flex";
 import { AdCanvas } from "@/components/ad-canvas";
-import { CheckIcon, ChevronDown, DownloadIcon, RefreshIcon } from "@/components/icons";
+import { ShareSheet } from "@/components/share-sheet";
+import { CheckIcon, ChevronDown, DownloadIcon, LockIcon, RefreshIcon, XIcon } from "@/components/icons";
 import { FORMATS, STYLES, formatMeta } from "@/lib/formats";
 import type { StyleId } from "@/lib/types";
-import type { StudioController } from "@/hooks/use-studio";
+import { buildShareCaption, type StudioController } from "@/hooks/use-studio";
 
 const shapeWidth = (ratio: number) => (ratio >= 2 ? "86%" : ratio > 1 ? "80%" : "58%");
 
@@ -18,8 +20,12 @@ export function Studio({ s }: { s: StudioController }) {
     style, setStyle, advancedOpen, setAdvancedOpen,
     ctaOverride, setCtaOverride, textFree, setTextFree,
     results, isGenerating, genError, chosen, allChosen,
-    generate, toggleChosen, toggleSelectAll, registerCanvas, downloadImage, downloadAll,
+    shared, shareHint,
+    generate, toggleChosen, toggleSelectAll, registerCanvas, downloadImage, downloadAll, shareToX, getAdDataUrl,
   } = s;
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareIdx = chosen.size > 0 ? Math.min(...chosen) : 0;
 
   return (
     <div className="min-h-dvh font-sans antialiased">
@@ -118,7 +124,15 @@ export function Studio({ s }: { s: StudioController }) {
                     <span className={`grid size-4 place-items-center rounded-[5px] ${allChosen ? "bg-primary text-white" : "border border-current"}`}>{allChosen && <CheckIcon className="size-2.5" />}</span>
                     Select all
                   </button>
-                  <button onClick={downloadAll} className="btn-dark px-3 py-1.5 text-[12px]"><DownloadIcon /> {chosen.size > 0 ? `Download ${chosen.size}` : "Download all"}</button>
+                  <button onClick={() => setShareOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-black px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-zinc-800"><XIcon /> Share on X</button>
+                  <button
+                    onClick={downloadAll}
+                    disabled={!shared}
+                    title={shared ? "" : "Share on X to unlock downloads"}
+                    className="btn-dark px-3 py-1.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {shared ? <DownloadIcon /> : <LockIcon className="size-3.5" />} {chosen.size > 0 ? `Download ${chosen.size}` : "Download all"}
+                  </button>
                 </div>
               )}
             </div>
@@ -202,7 +216,14 @@ export function Studio({ s }: { s: StudioController }) {
                             <span className={`grid size-4 place-items-center rounded-full ${isChosen ? "bg-primary text-white" : "border border-current"}`}>{isChosen && <CheckIcon className="size-2.5" />}</span>
                             {isChosen ? "Selected" : "Select"}
                           </button>
-                          <button onClick={() => downloadImage(r, i)} className="btn-secondary px-2.5 py-1.5 text-[12px]"><DownloadIcon /> Download</button>
+                          <button
+                            onClick={() => downloadImage(r, i)}
+                            disabled={!shared}
+                            title={shared ? "" : "Share on X to unlock downloads"}
+                            className="btn-secondary px-2.5 py-1.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {shared ? <DownloadIcon /> : <LockIcon className="size-3.5" />} Download
+                          </button>
                         </div>
                       </div>
                       <div className="p-4">
@@ -216,14 +237,45 @@ export function Studio({ s }: { s: StudioController }) {
 
                 {genError && <p className="text-xs text-red-500">{genError}</p>}
 
-                <div className="flex justify-center pt-1">
+                {!shared && (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-white/[0.02] px-4 py-4 text-center">
+                    <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                      <LockIcon className="size-3.5" /> Share your ads on X to unlock downloads
+                    </p>
+                    <button onClick={() => setShareOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-black px-4 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-800"><XIcon /> Share on X</button>
+                    <p className="text-[11px] text-muted-foreground">We tag <span className="font-medium text-brand-washed">@getcontextdev</span> and attach your ad automatically.</p>
+                  </div>
+                )}
+
+                <div className="flex justify-center gap-3 pt-1">
                   <button onClick={() => void generate()} disabled={isGenerating} className="btn-secondary text-[13px]"><RefreshIcon /> Regenerate</button>
+                  {shared && (
+                    <button onClick={() => setShareOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-black px-4 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-800"><XIcon /> Share on X</button>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
       </main>
+
+      {shareOpen && results[shareIdx] && (
+        <ShareSheet
+          brand={b}
+          dataUrl={getAdDataUrl(shareIdx)}
+          ratio={formatMeta(results[shareIdx].format).ratio}
+          caption={buildShareCaption(b.domain)}
+          onShare={shareToX}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+
+      {shareHint && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-up rounded-full border border-border bg-black px-4 py-2.5 text-[13px] font-medium text-white shadow-ad">
+          {shareHint}
+        </div>
+      )}
+
       <FortuneCookie />
     </div>
   );

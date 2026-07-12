@@ -5,6 +5,32 @@ import { FORMATS, formatMeta } from "@/lib/formats";
 import { DEMO_BRAND } from "@/lib/constants";
 import type { BrandAssets, FormatId, Result, StyleId } from "@/lib/types";
 
+const SHARE_URL = typeof window !== "undefined" ? window.location.origin : "https://context.dev";
+
+export function buildShareCaption(domain: string): string {
+  return `just turned ${domain} into scroll-stopping, on-brand ads in seconds with @getcontextdev 🎨\n\npaste any URL → instant on-brand ads. no designer needed.`;
+}
+
+/** Native share only makes sense on touch devices, where X is a real target. */
+function isMobile(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(pointer: coarse)").matches;
+}
+
+/** data:URL → Blob, synchronously, so clipboard/share writes keep the user gesture. */
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    const [meta, b64] = dataUrl.split(",");
+    const mime = /data:(.*?);/.exec(meta)?.[1] ?? "image/png";
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
 export function useStudio() {
   const [view, setView] = useState<"landing" | "app">("landing");
 
@@ -26,6 +52,9 @@ export function useStudio() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
+  // Downloads stay locked until the user shares this batch on X (viral gate).
+  const [shared, setShared] = useState(false);
+  const [shareHint, setShareHint] = useState<string | null>(null);
 
   const activeBrand = brand ?? DEMO_BRAND;
   const orderedFormats = FORMATS.filter((f) => selectedFormats.includes(f.id));
@@ -72,6 +101,8 @@ export function useStudio() {
     setIsGenerating(true);
     setResults([]);
     setChosen(new Set());
+    setShared(false);
+    setShareHint(null);
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -127,6 +158,12 @@ export function useStudio() {
     else delete canvasMap.current[i];
   }, []);
 
+  /** PNG data URL of the composited ad at index `i` (for share previews / native share). */
+  const getAdDataUrl = useCallback((i: number): string | null => {
+    const c = canvasMap.current[i];
+    return c ? c.toDataURL("image/png") : null;
+  }, []);
+
   const downloadImage = useCallback((r: Result, i: number) => {
     const fmt = formatMeta(r.format);
     const name = `${(activeBrand.name ?? activeBrand.domain).replace(/\W+/g, "-").toLowerCase()}-${fmt.id}-${i + 1}.png`;
@@ -169,6 +206,51 @@ export function useStudio() {
     idxs.forEach((idx, k) => setTimeout(() => downloadImage(results[idx], idx), k * 300));
   }, [chosen, results, downloadImage]);
 
+  /**
+   * One-tap share to X. On mobile (and browsers that support it) the image +
+   * caption go straight into the X app. On desktop web — where X can't accept an
+   * image via URL — we open the composer with the caption prefilled and copy the
+   * ad to the clipboard so the user just pastes it. Sharing unlocks downloads.
+   */
+  const shareToX = useCallback(() => {
+    const i = chosen.size > 0 ? Math.min(...chosen) : 0;
+    const r = results[i];
+    if (!r) return;
+
+    const caption = buildShareCaption(activeBrand.domain);
+    const dataUrl = getAdDataUrl(i);
+    const blob = dataUrl ? dataUrlToBlob(dataUrl) : null;
+    const file = blob ? new File([blob], `branda-${activeBrand.domain}.png`, { type: blob.type }) : null;
+
+    // Mobile only: the native sheet lists X as a target. On desktop it lists
+    // AirDrop/Mail/etc. instead, so we go straight to the X composer there.
+    if (isMobile() && file && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file], text: caption }).then(() => setShared(true)).catch(() => {});
+      return;
+    }
+
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(SHARE_URL)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    let copied = false;
+    try {
+      if (blob && typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        void navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).catch(() => {});
+        copied = true;
+      }
+    } catch {
+      /* clipboard image unsupported (e.g. Firefox) — fall back to a download */
+    }
+    if (!copied) downloadImage(r, i);
+
+    setShared(true);
+    setShareHint(copied ? "Image copied — paste it into your post (⌘/Ctrl + V)" : "Ad saved — attach it to your post");
+    window.setTimeout(() => setShareHint(null), 8000);
+  }, [chosen, results, activeBrand, getAdDataUrl, downloadImage]);
+
   return {
     view,
     url, setUrl,
@@ -183,9 +265,10 @@ export function useStudio() {
     textFree, setTextFree,
     results, isGenerating, genError,
     chosen, allChosen,
+    shared, shareHint,
     loadBrand, generate,
     toggleChosen, toggleSelectAll,
-    registerCanvas, downloadImage, downloadAll,
+    registerCanvas, downloadImage, downloadAll, getAdDataUrl, shareToX,
   };
 }
 
