@@ -30,6 +30,10 @@ export default function ImageMouseTrail({
   const last = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
+    // Desktop-only flourish. On touch devices the trail spawns while scrolling
+    // and parks images over the headline, so don't attach at all.
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+
     const activate = (image: HTMLImageElement, x: number, y: number) => {
       image.style.left = `${x}px`;
       image.style.top = `${y}px`;
@@ -55,13 +59,8 @@ export default function ImageMouseTrail({
     };
 
     const onMouse = (e: MouseEvent) => handle(e.clientX, e.clientY);
-    const onTouch = (e: TouchEvent) => { const t = e.touches[0]; if (t) handle(t.clientX, t.clientY); };
     window.addEventListener("mousemove", onMouse);
-    window.addEventListener("touchmove", onTouch, { passive: true });
-    return () => {
-      window.removeEventListener("mousemove", onMouse);
-      window.removeEventListener("touchmove", onTouch);
-    };
+    return () => window.removeEventListener("mousemove", onMouse);
   }, [distance, maxNumberOfImages, fadeAnimation]);
 
   return (

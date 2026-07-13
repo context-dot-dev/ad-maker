@@ -1,20 +1,20 @@
 import { generateObject } from "ai";
-import type { OpenAIProvider } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { Brand } from "./types";
 import type { RefBuffer } from "./image-generator";
+import type { AIProvider } from "./provider";
 
 /**
  * Pick the SINGLE best brand asset to style a new ad. Handing gpt-image-1 several
  * references makes it blend them into a muddy composite, so we let a quick vision
  * model choose one strong, campaign-like image and pass only that to the renderer.
  */
-export async function pickBestReference(openai: OpenAIProvider, brand: Brand, refs: RefBuffer[]): Promise<number> {
+export async function pickBestReference(provider: AIProvider, brand: Brand, refs: RefBuffer[]): Promise<number> {
   if (refs.length <= 1) return 0;
 
   try {
     const { object } = await generateObject({
-      model: openai("gpt-4.1-mini"),
+      model: provider.text("gpt-4.1-mini"),
       schema: z.object({
         index: z.number().int().describe(`0-based index of the single best asset (0 to ${refs.length - 1})`),
       }),

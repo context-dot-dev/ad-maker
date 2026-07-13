@@ -1,5 +1,6 @@
-import OpenAI, { toFile } from "openai";
+import { generateImage } from "ai";
 import { FORMAT_SPEC, type FormatId } from "./presets";
+import type { AIProvider } from "./provider";
 
 export type RefBuffer = { data: Buffer; type: string; name: string };
 
@@ -28,28 +29,31 @@ export async function downloadReferences(urls: string[]): Promise<RefBuffer[]> {
 }
 
 /**
- * STEP 5 — render. Prefers gpt-image-1 with real brand references (images.edit),
- * falls back to plain generation, then dall-e-3.
+ * STEP 5 — render. Prefers gpt-image-1 with real brand references (image edit),
+ * falls back to plain generation, then dall-e-3 (direct OpenAI only — the
+ * gateway doesn't serve dall-e-3).
  */
 export async function renderPoster(opts: {
-  apiKey: string;
+  provider: AIProvider;
   prompt: string;
   format: FormatId;
   refs: RefBuffer[];
   quality?: "low" | "medium" | "high" | "auto";
 }): Promise<string> {
-  const { apiKey, prompt, format, refs, quality = "medium" } = opts;
-  const client = new OpenAI({ apiKey });
+  const { provider, prompt, format, refs, quality = "medium" } = opts;
   const size = FORMAT_SPEC[format].canvas;
+  const providerOptions = { openai: { quality } };
 
-  // 1) Style-reference edit — the brand's real assets guide the output. We hand the
-  // model every raster asset we have and let the prompt tell it to pick the best one.
+  // 1) Style-reference edit — the brand's real assets guide the output.
   if (refs.length > 0) {
     try {
-      const files = await Promise.all(refs.map((r) => toFile(r.data, r.name, { type: r.type })));
-      const r = await client.images.edit({ model: "gpt-image-1", image: files, prompt, size, quality });
-      const b64 = r.data?.[0]?.b64_json;
-      if (b64) return `data:image/png;base64,${b64}`;
+      const { image } = await generateImage({
+        model: provider.image("gpt-image-1"),
+        prompt: { text: prompt, images: refs.map((r) => r.data) },
+        size,
+        providerOptions,
+      });
+      return `data:${image.mediaType ?? "image/png"};base64,${image.base64}`;
     } catch (err) {
       console.warn("[image] gpt-image-1 edit failed, falling back:", (err as Error)?.message);
     }
@@ -57,16 +61,23 @@ export async function renderPoster(opts: {
 
   // 2) Plain gpt-image-1.
   try {
-    const r = await client.images.generate({ model: "gpt-image-1", prompt, size, quality });
-    const b64 = r.data?.[0]?.b64_json;
-    if (b64) return `data:image/png;base64,${b64}`;
+    const { image } = await generateImage({
+      model: provider.image("gpt-image-1"),
+      prompt,
+      size,
+      providerOptions,
+    });
+    return `data:${image.mediaType ?? "image/png"};base64,${image.base64}`;
   } catch (err) {
+    if (provider.name !== "openai") throw err;
     console.warn("[image] gpt-image-1 generate failed, trying dall-e-3:", (err as Error)?.message);
   }
 
-  // 3) dall-e-3 last resort.
-  const r = await client.images.generate({ model: "dall-e-3", prompt, size: FORMAT_SPEC[format].dalle, response_format: "b64_json" });
-  const b64 = r.data?.[0]?.b64_json;
-  if (!b64) throw new Error("No image returned");
-  return `data:image/png;base64,${b64}`;
+  // 3) dall-e-3 last resort (helps OpenAI orgs not yet verified for gpt-image-1).
+  const { image } = await generateImage({
+    model: provider.image("dall-e-3"),
+    prompt,
+    size: FORMAT_SPEC[format].dalle,
+  });
+  return `data:${image.mediaType ?? "image/png"};base64,${image.base64}`;
 }

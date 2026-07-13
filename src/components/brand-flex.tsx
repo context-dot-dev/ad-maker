@@ -11,21 +11,19 @@ export function BrandFlex({ brand, url, setUrl, onLoad, loading }: {
   onLoad: () => void;
   loading: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const logoTileBg = brand.darkColor ?? "#030014";
   const assetCount = brand.colors.length + brand.logos.length + brand.backdrops.length;
 
-  // Reveal the full brand kit on load to flex the API, then gently tuck it away.
+  // Collapse again whenever a new brand is loaded.
   useEffect(() => {
-    setExpanded(true);
-    const t = setTimeout(() => setExpanded(false), 2600);
-    return () => clearTimeout(t);
+    setExpanded(false);
   }, [brand.domain]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-        <button onClick={() => setExpanded((v) => !v)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={expanded}>
+      <div className="relative flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        <button onClick={() => setExpanded((v) => !v)} className="flex min-w-0 flex-1 items-center gap-3 pr-12 text-left sm:pr-0" aria-expanded={expanded}>
           <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl p-2 ring-1 ring-border" style={{ background: logoTileBg }}>
             {brand.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -60,7 +58,7 @@ export function BrandFlex({ brand, url, setUrl, onLoad, loading }: {
           </button>
         </form>
 
-        <button onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Collapse" : "Expand"} className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-white/[0.03] text-muted-foreground transition hover:text-foreground">
+        <button onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Collapse" : "Expand"} className="absolute right-4 top-5 grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-white/[0.03] text-muted-foreground transition hover:text-foreground sm:static">
           <ChevronDown className={`size-4 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
         </button>
       </div>

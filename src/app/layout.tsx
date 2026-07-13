@@ -3,7 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Branda — Context.dev",
+  title: "Branda | Context.dev",
   description: "Create on-brand ads in seconds. Powered by the Context.dev Brand API.",
   icons: { icon: "/favicon.ico" },
 };

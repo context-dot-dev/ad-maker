@@ -8,7 +8,7 @@ Paste any URL. Get scroll-stopping, on-brand ads in seconds.
 
 <p align="center">
 
-⭐ Star us • ⚡ Powered by [Context.dev](https://context.dev) • 📜 MIT
+⭐ Star us • ⚡ Powered by [Context.dev](https://link.context.dev/branda) • 📜 MIT
 
 </p>
 
@@ -18,13 +18,13 @@ Paste any URL. Get scroll-stopping, on-brand ads in seconds.
 
 ---
 
-## Built by the [Context.dev](https://context.dev) team 🥠
+## Built by the [Context.dev](https://link.context.dev/branda) team 🥠
 
-Branda is a fully open-source ad generator that turns **any website URL** into a set of polished, on-brand marketing creatives. There's no login, no setup, no design skills required — paste a URL and Branda pulls the brand's real logo, colors, and imagery straight from the [Context.dev Brand API](https://context.dev), then generates ready-to-ship ads that actually look like they belong to the brand.
+Branda is a fully open-source ad generator that turns **any website URL** into a set of polished, on-brand marketing creatives. There's no login, no setup, no design skills required — paste a URL and Branda pulls the brand's real logo, colors, and imagery straight from the [Context.dev Brand API](https://link.context.dev/branda), then generates ready-to-ship ads that actually look like they belong to the brand.
 
 Paste `notion.com` and Branda will:
 
-- 🎨 Pull the brand's logo, palette, and campaign imagery from [Context.dev](https://context.dev)
+- 🎨 Pull the brand's logo, palette, and campaign imagery from [Context.dev](https://link.context.dev/branda)
 - 👀 Read the homepage so the copy speaks in the brand's real voice
 - 🧠 Pick the single strongest brand asset to style the ad off (no muddy blends)
 - 🖼️ Generate distinct ads per format with `gpt-image-1`
@@ -50,7 +50,7 @@ Paste `notion.com` and Branda will:
 ## What you get
 
 - **URL → ads, instantly** — one input. Branda resolves the brand and generates creatives; no assets to upload.
-- **Genuinely on-brand** — logos, colors, and campaign backdrops come from the real brand via [Context.dev](https://context.dev), not generic stock.
+- **Genuinely on-brand** — logos, colors, and campaign backdrops come from the real brand via [Context.dev](https://link.context.dev/branda), not generic stock.
 - **Smart reference selection** — a vision model inspects every brand asset and picks the single strongest one to style the ad, so outputs stay coherent instead of blending everything together.
 - **Brand-grounded copy** — headlines are written from the brand's actual homepage content, in its own vocabulary — never invented positioning.
 - **Multiple formats at once** — pick up to three formats and get one distinct ad for each.
@@ -94,7 +94,7 @@ Paste `notion.com` and Branda will:
               Canvas preview · Download · Share on X
 ```
 
-1. **Resolve the brand** — `/api/brand` calls the [Context.dev](https://context.dev) Brand API for logo/colors/imagery and scrapes the homepage to markdown for copy grounding.
+1. **Resolve the brand** — `/api/brand` calls the [Context.dev](https://link.context.dev/branda) Brand API for logo/colors/imagery and scrapes the homepage to markdown for copy grounding.
 2. **Generate** — `/api/generate` downloads the brand's assets, has a vision model pick the strongest one, writes headlines from the homepage, and renders one ad per selected format with `gpt-image-1`.
 3. **Ship** — ads render on a client canvas for preview, download, or a one-tap share to X.
 
@@ -102,7 +102,7 @@ Paste `notion.com` and Branda will:
 
 ## Quick start
 
-**Prerequisites:** Node.js ≥ 20, a free [Context.dev API key](https://context.dev), and an [OpenAI API key](https://platform.openai.com) (image + copy generation).
+**Prerequisites:** Node.js ≥ 20, a free [Context.dev API key](https://link.context.dev/branda), and a [Vercel AI Gateway key](https://vercel.com/docs/ai-gateway) or [OpenAI API key](https://platform.openai.com) (image + copy generation).
 
 ```bash
 # 1. Clone
@@ -114,7 +114,7 @@ npm install
 
 # 3. Configure
 cp .env.example .env
-# add CONTEXT_DEV_API_KEY and OPENAI_API_KEY to .env
+# add CONTEXT_DEV_API_KEY and AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to .env
 
 # 4. Run
 npm run dev      # http://localhost:3000
@@ -123,7 +123,7 @@ npm run dev      # http://localhost:3000
 Open `http://localhost:3000`, paste a URL, pick your formats, and generate. That's it.
 
 > [!NOTE]
-> `gpt-image-1` requires a verified OpenAI organization. If generation returns a 403, verify your org in the OpenAI dashboard.
+> When using OpenAI directly, `gpt-image-1` requires a verified OpenAI organization. If generation returns a 403, verify your org in the OpenAI dashboard (the AI Gateway doesn't have this requirement).
 
 ---
 
@@ -133,9 +133,9 @@ All configuration is environment variables (see `.env.example`).
 
 | Variable | Required | Description |
 |---|---|---|
-| `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://context.dev) key — powers brand data and homepage scraping |
-| `OPENAI_API_KEY` | Yes | OpenAI key — powers copywriting (`gpt-4.1-mini`), reference selection, and image generation (`gpt-image-1`) |
-| `AI_GATEWAY_API_KEY` | No | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key, if you prefer routing models through the gateway |
+| `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data and homepage scraping |
+| `AI_GATEWAY_API_KEY` | One of the two | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers copywriting (`gpt-4.1-mini`), reference selection, and image generation (`gpt-image-1`). Preferred when both are set |
+| `OPENAI_API_KEY` | One of the two | OpenAI key, used when no gateway key is set — same models, direct to OpenAI |
 
 ---
 
@@ -179,14 +179,14 @@ public/                     # logo, cover, ad examples
 ## Tech stack
 
 - ▲ **Next.js 15** (App Router) + React 19 + TypeScript
-- ⚡ **[Context.dev](https://context.dev)** — brand data (logo, colors, imagery, socials) + web scraping
+- ⚡ **[Context.dev](https://link.context.dev/branda)** — brand data (logo, colors, imagery, socials) + web scraping
 - 🤖 **Vercel AI SDK** + **OpenAI** — `gpt-4.1-mini` for copy & reference selection, `gpt-image-1` for images
 - 🎨 **Tailwind CSS** + **Geist** font
 - 🖼️ **Canvas API** — client-side ad compositing and export
 
 ---
 
-## Built using [Context.dev](https://context.dev)
+## Built using [Context.dev](https://link.context.dev/branda)
 
 Every brand asset in Branda — the logos, colors, campaign imagery, and homepage content — comes from a single API. Want to build your own brand-aware tool or agent?
 
@@ -198,10 +198,10 @@ const client = new ContextDev({ apiKey: process.env.CONTEXT_DEV_API_KEY });
 const { brand } = await client.brand.retrieve({ domain: "notion.com" });
 ```
 
-👉 **[Get your free API key →](https://context.dev)**
+👉 **[Get your free API key →](https://link.context.dev/branda)**
 
 ---
 
 ## License
 
-MIT © [Context.dev](https://context.dev)
+MIT © [Context.dev](https://link.context.dev/branda)

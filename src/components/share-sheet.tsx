@@ -85,7 +85,7 @@ export function ShareSheet({
           </div>
 
           <p className="text-center text-[10.5px] leading-snug text-muted-foreground/70">
-            Opens X with your caption ready — the ad is copied so you just paste it (⌘/Ctrl + V). Sharing unlocks downloads.
+            Opens X with your caption ready. The ad is copied so you just paste it (⌘/Ctrl + V). Sharing unlocks downloads.
           </p>
         </div>
       </div>

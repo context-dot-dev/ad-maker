@@ -1,5 +1,5 @@
-import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
+import { getProvider } from "@/lib/generate/provider";
 import { selectReferences } from "@/lib/generate/references";
 import { pickBestReference } from "@/lib/generate/reference-picker";
 import { copywriter } from "@/lib/generate/copywriter";
@@ -43,9 +43,8 @@ export async function POST(req: Request) {
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Invalid request" }, { status: 400 });
 
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) return Response.json({ error: "OpenAI key required for image generation. Set OPENAI_API_KEY in admaker/.env." }, { status: 500 });
-  const openai = createOpenAI({ apiKey: key });
+  const provider = getProvider();
+  if (!provider) return Response.json({ error: "An AI key is required for image generation. Set AI_GATEWAY_API_KEY or OPENAI_API_KEY in ad-maker/.env." }, { status: 500 });
 
   const d = parsed.data;
   const brand: Brand = {
@@ -66,13 +65,13 @@ export async function POST(req: Request) {
     const candidateUrls = selectReferences({ backdrops: d.backdrops, logoUrl: d.logoUrl });
     const [downloaded, copies] = await Promise.all([
       downloadReferences(candidateUrls),
-      posterCount > 0 ? copywriter(openai, brand, posterCount) : Promise.resolve<Copy[]>([]),
+      posterCount > 0 ? copywriter(provider, brand, posterCount) : Promise.resolve<Copy[]>([]),
     ]);
 
     // Let a vision model choose the ONE strongest asset, then style off just that.
     // Sending several references to gpt-image-1 makes it blend them into a mess.
     const candidates = downloaded.slice(0, 4);
-    const best = candidates.length > 1 ? await pickBestReference(openai, brand, candidates) : 0;
+    const best = candidates.length > 1 ? await pickBestReference(provider, brand, candidates) : 0;
     const refs = candidates.slice(best, best + 1);
     const refCount = refs.length;
 
@@ -96,7 +95,7 @@ export async function POST(req: Request) {
             ? buildArtworkPrompt({ brand, format, refCount, reserveLeft: false })
             : buildPosterPrompt({ brand, copy, format, refCount, cta: cta || undefined });
 
-        const url = await renderPoster({ apiKey: key, prompt, format, refs });
+        const url = await renderPoster({ provider, prompt, format, refs });
         const layout: TextLayout = DEFAULT_LAYOUT; // poster bakes text; art has none — no overlay
         return { format, url, mode, headline: copy.headline, sub: copy.sub, cta, layout };
       }),
@@ -108,8 +107,8 @@ export async function POST(req: Request) {
     const e = err as { status?: number; statusCode?: number; message?: string };
     const status = e?.status ?? e?.statusCode;
     let message = "Image generation failed. Please try again.";
-    if (status === 401) message = "The AI provider rejected the API key (401). Check OPENAI_API_KEY in admaker/.env.";
-    else if (status === 429) message = "Rate limited by OpenAI. Try again in a moment.";
+    if (status === 401) message = "The AI provider rejected the API key (401). Check AI_GATEWAY_API_KEY / OPENAI_API_KEY in ad-maker/.env.";
+    else if (status === 429) message = "Rate limited by the AI provider. Try again in a moment.";
     else if (status === 403) message = "Your OpenAI account can't access the image model yet (needs org verification for gpt-image-1).";
     return Response.json({ error: message }, { status: 500 });
   }

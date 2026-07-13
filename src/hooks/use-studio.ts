@@ -5,7 +5,7 @@ import { FORMATS, formatMeta } from "@/lib/formats";
 import { DEMO_BRAND } from "@/lib/constants";
 import type { BrandAssets, FormatId, Result, StyleId } from "@/lib/types";
 
-const SHARE_URL = typeof window !== "undefined" ? window.location.origin : "https://context.dev";
+const SHARE_URL = typeof window !== "undefined" ? window.location.origin : "https://link.context.dev/branda";
 
 export function buildShareCaption(domain: string): string {
   return `just turned ${domain} into scroll-stopping, on-brand ads in seconds with @getcontextdev 🎨\n\npaste any URL → instant on-brand ads. no designer needed.`;
@@ -247,7 +247,7 @@ export function useStudio() {
     if (!copied) downloadImage(r, i);
 
     setShared(true);
-    setShareHint(copied ? "Image copied — paste it into your post (⌘/Ctrl + V)" : "Ad saved — attach it to your post");
+    setShareHint(copied ? "Image copied. Paste it into your post (⌘/Ctrl + V)" : "Ad saved. Attach it to your post");
     window.setTimeout(() => setShareHint(null), 8000);
   }, [chosen, results, activeBrand, getAdDataUrl, downloadImage]);
 

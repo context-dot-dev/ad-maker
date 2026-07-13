@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
-import type { OpenAIProvider } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { Brand, Copy } from "./types";
+import type { AIProvider } from "./provider";
 
 /**
  * Brand-aware poster copy. The #1 failure mode is inventing positioning the
@@ -9,9 +9,9 @@ import type { Brand, Copy } from "./types";
  * treat the scraped homepage as the source of truth and force the model to
  * continue the brand's REAL campaign using its own vocabulary — no invention.
  */
-export async function copywriter(openai: OpenAIProvider, brand: Brand, count: number): Promise<Copy[]> {
+export async function copywriter(provider: AIProvider, brand: Brand, count: number): Promise<Copy[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4.1-mini"),
+    model: provider.text("gpt-4.1-mini"),
     schema: z.object({
       keywords: z.array(z.string()).describe("3-6 words/phrases lifted from the homepage that capture how this brand actually talks"),
       copies: z.array(z.object({

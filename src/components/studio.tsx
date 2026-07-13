@@ -42,7 +42,7 @@ export function Studio({ s }: { s: StudioController }) {
                 <p className="text-sm font-semibold text-foreground">Formats</p>
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-brand-washed ring-1 ring-primary/30">{selectedFormats.length}/3</span>
               </div>
-              <p className="mb-3.5 text-[12px] leading-relaxed text-muted-foreground">Pick up to 3 — one distinct on-brand ad per format.</p>
+              <p className="mb-3.5 text-[12px] leading-relaxed text-muted-foreground">Pick up to 3. One distinct on-brand ad per format.</p>
               <div className="space-y-2">
                 {FORMATS.map((f) => {
                   const isSel = selectedFormats.includes(f.id);
@@ -116,10 +116,10 @@ export function Studio({ s }: { s: StudioController }) {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-base font-semibold text-foreground">Generated ads</p>
-                <p className="text-[13px] text-muted-foreground">Real AI creatives — on your brand, ready to ship.</p>
+                <p className="text-[13px] text-muted-foreground">Real AI creatives on your brand, ready to ship.</p>
               </div>
               {results.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button onClick={toggleSelectAll} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition ${allChosen ? "border-primary bg-primary/15 text-brand-washed" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
                     <span className={`grid size-4 place-items-center rounded-[5px] ${allChosen ? "bg-primary text-white" : "border border-current"}`}>{allChosen && <CheckIcon className="size-2.5" />}</span>
                     Select all
@@ -160,7 +160,7 @@ export function Studio({ s }: { s: StudioController }) {
                 <div className="mt-5 flex flex-col items-center gap-3 border-t border-border pt-5 text-center">
                   <p className="max-w-sm text-[13px] leading-relaxed text-muted-foreground">
                     {orderedFormats.length > 0 ? (
-                      <>Ready when you are — we&apos;ll craft {orderedFormats.length} distinct, on-brand ad{orderedFormats.length === 1 ? "" : "s"} for <span className="font-semibold text-foreground">{b.name ?? b.domain}</span>.</>
+                      <>Ready when you are. We&apos;ll craft {orderedFormats.length} distinct, on-brand ad{orderedFormats.length === 1 ? "" : "s"} for <span className="font-semibold text-foreground">{b.name ?? b.domain}</span>.</>
                     ) : (
                       "Choose your formats and hit generate."
                     )}
@@ -209,7 +209,7 @@ export function Studio({ s }: { s: StudioController }) {
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="grid size-6 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">{f.icon}</span>
                           <p className="truncate text-[13px] font-semibold text-foreground">{f.label}</p>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{f.w} × {f.h}</span>
+                          <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">{f.w} × {f.h}</span>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <button onClick={() => toggleChosen(i)} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition ${isChosen ? "border-primary bg-primary/15 text-brand-washed" : "border-border bg-white/[0.02] text-muted-foreground hover:text-foreground"}`}>
