@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.121",
-    "@ai-sdk/openai": "^3.0.67",
     "ai": "^6.0.193",
     "context.dev": "^1.18.0",
     "geist": "^1.7.2",

@@ -131,7 +131,7 @@ All twelve prompt templates share a strict typography spec (the only text allowe
 
 - Node.js ≥ 20
 - A free [Context.dev API key](https://link.context.dev/branda) — brand data + homepage scraping
-- A [Vercel AI Gateway key](https://vercel.com/docs/ai-gateway) **or** [OpenAI API key](https://platform.openai.com) — copy + image generation
+- A [Vercel AI Gateway key](https://vercel.com/docs/ai-gateway) — copy + image generation
 
 ```bash
 # 1. Clone
@@ -143,7 +143,7 @@ npm install
 
 # 3. Configure
 cp .env.example .env
-# add CONTEXT_DEV_API_KEY and AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to .env
+# add CONTEXT_DEV_API_KEY and AI_GATEWAY_API_KEY to .env
 
 # 4. Run
 npm run dev      # http://localhost:3000
@@ -152,7 +152,7 @@ npm run dev      # http://localhost:3000
 Open `http://localhost:3000`, paste a domain, and watch six ads roll in. That's it.
 
 > [!NOTE]
-> The Vercel AI Gateway key is recommended — it serves all six image models. With a direct OpenAI key, every ad renders with `gpt-image-1` instead (which requires a verified OpenAI organization).
+> A single Vercel AI Gateway key serves everything Branda uses — concept picking, copy, and all six image models — from one credit balance, with no per-provider keys to manage.
 
 ---
 
@@ -163,8 +163,7 @@ All configuration is environment variables (see `.env.example`).
 | Variable | Required | Description |
 |---|---|---|
 | `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data, homepage scraping, and the styleguide mood |
-| `AI_GATEWAY_API_KEY` | One of the two | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and all six image models. Preferred when both are set |
-| `OPENAI_API_KEY` | One of the two | OpenAI key, used when no gateway key is set — OpenAI image models only |
+| `AI_GATEWAY_API_KEY` | Yes | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and all six image models |
 
 To swap image models, edit `AD_MODELS` in `src/lib/generate/concepts.ts`.
 
@@ -200,7 +199,7 @@ src/
       concepts.ts           # the 12 creative directions + prompt templates + AD_MODELS
       brief.ts              # summary derivation + concept picking + copywriting
       colors.ts             # hex → describable color phrases
-      provider.ts           # Vercel AI Gateway / OpenAI provider
+      provider.ts           # Vercel AI Gateway provider
 public/                     # logo, cover, ad examples
 ```
 

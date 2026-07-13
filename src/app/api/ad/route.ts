@@ -67,7 +67,7 @@ export async function GET(req: Request) {
 
   const provider = getProvider();
   if (!provider) {
-    return fail("An AI key is required. Set AI_GATEWAY_API_KEY or OPENAI_API_KEY in ad-maker/.env.", 500);
+    return fail("An AI key is required. Set AI_GATEWAY_API_KEY in ad-maker/.env.", 500);
   }
 
   const input: PromptInput = {
@@ -99,9 +99,9 @@ export async function GET(req: Request) {
       const { image } = await generateImage({
         model: provider.image(model),
         prompt: logo ? { text: prompt, images: [logo] } : prompt,
-        // aspectRatio translates across providers where pixel sizes don't;
-        // direct OpenAI needs an explicit size instead.
-        ...(provider.name === "gateway" ? { aspectRatio: "1:1" as const } : { size: "1024x1024" as const }),
+        // aspectRatio translates across every gateway image model, where fixed
+        // pixel sizes don't.
+        aspectRatio: "1:1",
         providerOptions: { openai: { quality: "medium" } },
       });
 

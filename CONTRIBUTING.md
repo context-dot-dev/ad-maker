@@ -20,7 +20,7 @@ Thanks for your interest in contributing! Branda is an open-source project by th
 
    You'll need:
    - A free [Context.dev API key](https://link.context.dev/branda) (`CONTEXT_DEV_API_KEY`)
-   - A [Vercel AI Gateway key](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY`) **or** an [OpenAI API key](https://platform.openai.com) (`OPENAI_API_KEY`)
+   - A [Vercel AI Gateway key](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY`)
 
 3. **Run the dev server:**
 
