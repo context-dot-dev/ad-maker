@@ -1,20 +1,4 @@
-import type { BrandAssets } from "./types";
-
-export const DEMO_BRAND: BrandAssets = {
-  domain: "acme.com",
-  name: "ACME",
-  description: "Real-time web data for modern teams.",
-  slogan: null,
-  logoUrl: null,
-  primaryColor: "#2663ec",
-  darkColor: "#0a2540",
-  colors: [{ hex: "#2663ec", name: "Blue" }],
-  logos: [],
-  backdrops: [],
-  socials: 0,
-  creditsConsumed: null,
-  creditsRemaining: null,
-};
+export const ADS_PER_RUN = 6;
 
 export const EXAMPLE_DOMAINS = ["stripe.com", "linear.app", "notion.so", "vercel.com"];
 

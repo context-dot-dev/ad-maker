@@ -21,15 +21,16 @@
 
 ## Built by the [Context.dev](https://link.context.dev/branda) team 🥠
 
-Branda is a fully open-source ad generator that turns **any website URL** into a set of polished, on-brand marketing creatives. No login, no setup, no design skills required — paste a URL and Branda pulls the brand's real logo, colors, and imagery straight from the [Context.dev Brand API](https://link.context.dev/branda), then generates ready-to-ship ads that actually look like they belong to the brand.
+Branda is a fully open-source ad generator that turns **any website URL** into six polished, on-brand marketing creatives. No login, no setup, no briefs, no settings — the domain is the only input. Branda pulls the brand's real logo, colors, and voice straight from the [Context.dev Brand API](https://link.context.dev/branda), then the page morphs in place into a gallery of six square ads, each rendered by a different image model in a different creative direction.
 
 Paste `notion.com` and Branda will:
 
-- 🎨 Pull the brand's logo, palette, and campaign imagery from [Context.dev](https://link.context.dev/branda)
+- 🎨 Pull the brand's logo, palette, industry, and visual mood from [Context.dev](https://link.context.dev/branda)
 - 👀 Read the homepage so the copy speaks in the brand's real voice
-- 🧠 Pick the single strongest brand asset to style the ad off (no muddy blends)
-- 🖼️ Generate distinct ads per format with `gpt-image-1`
-- 📤 Export or share the result straight to X
+- 🧠 Have an LLM pick 6 of 12 creative directions and write tailored copy for each
+- 🖼️ Render 6 distinct 1:1 ads in parallel — every single ad by a **different image model** (OpenAI, xAI, Google, Black Forest Labs, Recraft)
+- ⚡ Cache every brief and ad on the Vercel CDN, so repeat domains cost nothing
+- 📥 Download each ad (or all six) and share straight to X
 
 ---
 
@@ -49,7 +50,7 @@ Real outputs, straight from Branda — one URL in, one ad out:
 ## Table of contents
 
 - [What you get](#what-you-get)
-- [Ad formats](#ad-formats)
+- [The 12 creative directions](#the-12-creative-directions)
 - [How it works](#how-it-works)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
@@ -64,54 +65,63 @@ Real outputs, straight from Branda — one URL in, one ad out:
 
 ## What you get
 
-- **URL → ads, instantly** — one input. Branda resolves the brand and generates creatives; no assets to upload.
-- **Genuinely on-brand** — logos, colors, and campaign backdrops come from the real brand via [Context.dev](https://link.context.dev/branda), not generic stock.
-- **Smart reference selection** — a vision model inspects every brand asset and picks the single strongest one to style the ad, so outputs stay coherent instead of blending everything together.
+- **Domain → 6 ads, one input** — no formats to pick, no messages to write, no style dropdowns. Paste a domain and the page morphs into a live gallery as each ad lands.
+- **Genuinely on-brand** — logo, colors, industry, and visual mood come from the real brand via [Context.dev](https://link.context.dev/branda), not generic stock.
+- **12 creative directions** — an LLM picks the 6 that fit the brand best (and feel varied), then writes a tailored headline and subheadline for each.
+- **6 image models racing** — one model per ad: `gpt-image-1`, `gpt-image-2`, and `grok-imagine-image` always take the top three slots, with `imagen-4.0`, `flux-2-pro`, and `recraft-v4.1` filling the rest. Every ad streams in the moment its model finishes.
 - **Brand-grounded copy** — headlines are written from the brand's actual homepage content, in its own vocabulary — never invented positioning.
-- **Multiple formats at once** — pick up to three formats and get one distinct ad for each.
-- **Brand kit flex** — the brand overview surfaces everything Context.dev returns: colors, logos, imagery, and socials.
-- **One-tap share** — a compact share sheet opens X with your caption ready and the ad copied to your clipboard.
+- **CDN-cached** — briefs and finished ads are cached on the Vercel CDN, so the same domain never burns credits twice.
+- **All downloadable** — every ad individually, or all six at once. One-tap share to X with the ad copied to your clipboard.
 
 ---
 
-## Ad formats
+## The 12 creative directions
 
-| Format | Size | What's generated |
-|---|---|---|
-| **LinkedIn post** | 1200 × 1200 | Full ad with a baked-in headline (poster) |
-| **X (Twitter) banner** | 1500 × 500 | On-brand backdrop, text-free |
-| **LinkedIn banner** | 1584 × 396 | On-brand backdrop, text-free |
+Every generation picks 6 of these:
 
-> Wide banners are generated as pure backdrops on purpose — diffusion models mangle typography in extreme aspect ratios, so banners stay clean and text-free while the square post carries the headline.
+| Key | Style | Best for |
+| --- | --- | --- |
+| `product_hero` | Editorial product shot, dramatic studio lighting | Physical products, hardware |
+| `isometric` | SaaS-landing-page isometric diagram | B2B SaaS, dev tools, APIs |
+| `typographic` | Swiss-design poster, massive type | Statement-driven or abstract products |
+| `macro_material` | Extreme close-up of a material/surface | Beauty, food, fashion, premium finishes |
+| `gradient_field` | Pure atmospheric gradient | AI products, fintech, abstract services |
+| `editorial_spread` | Magazine spread (Kinfolk/Monocle vibe) | Lifestyle, food/drink, travel |
+| `sculptural_object` | Abstract 3D object in studio space | Tech/AI with no physical product |
+| `data_viz` | Chart-as-art | Analytics, BI, observability |
+| `blueprint` | Technical schematic drawing | Engineering, hardware, infrastructure |
+| `retro_arcade` | Late-80s neon/grid aesthetic | Gaming, playful brands |
+| `monochrome_crop` | Tight single-hue detail crop | Luxury, watches, minimalist brands |
+| `collage` | Cut-paper layered collage | Agencies, education, media |
+
+All twelve prompt templates share a strict typography spec (the only text allowed is the headline, subheadline, and wordmark) and hard rules (no hex codes, no placeholder text, no people/faces/hands). Brand colors are never passed as hex — each is converted to a phrase like "vivid purple", because image models literally print strings like `#543cfc` onto the art when given raw codes.
 
 ---
 
 ## How it works
 
 ```
-┌──────────────┐   POST /api/brand    ┌──────────────────┐
-│   Paste URL  │ ───────────────────▶ │  Context.dev API │
-└──────────────┘  brand + homepage md └──────────────────┘
-                          │ logo · colors · backdrops · copy context
-                          ▼
-┌──────────────┐   POST /api/generate
-│  Pick format │ ─────────────┐
-└──────────────┘              ▼
-        ┌───────────────────────────────────────────────┐
-        │  1. select + download brand assets             │
-        │  2. vision model picks the ONE best asset      │  gpt-4.1-mini
-        │  3. copywriter writes brand-grounded headlines │  gpt-4.1-mini
-        │  4. build a crop-aware prompt per format       │
-        │  5. render the ad off the chosen reference     │  gpt-image-1
-        └───────────────────────────────────────────────┘
-                          │ data-URL images
-                          ▼
-              Canvas preview · Download · Share on X
+┌──────────────┐   GET /api/brief?domain=…   ┌──────────────────┐
+│ Paste domain │ ──────────────────────────▶ │  Context.dev API │
+└──────────────┘                             └──────────────────┘
+                        │  brand (logo·colors·industry) + homepage md + styleguide mood
+                        ▼
+        ┌────────────────────────────────────────────────┐
+        │  one LLM call picks 6 of 12 concepts and       │  gpt-5.4-mini
+        │  writes headline + subheadline per concept;    │
+        │  3 image models shuffled across the 6 picks    │
+        └────────────────────────────────────────────────┘
+                        │  { brief, concepts[6] }   ← cached on Vercel CDN
+                        ▼
+        6 × GET /api/ad?domain=…&concept=…&model=…&headline=…
+                        │  each returns one 1:1 image  ← cached on Vercel CDN
+                        ▼
+        Ads stream into the gallery · Download · Share on X
 ```
 
-1. **Resolve the brand** — `/api/brand` calls the [Context.dev](https://link.context.dev/branda) Brand API for logo/colors/imagery and scrapes the homepage to markdown for copy grounding.
-2. **Generate** — `/api/generate` downloads the brand's assets, has a vision model pick the strongest one, writes headlines from the homepage, and renders one ad per selected format with `gpt-image-1`.
-3. **Ship** — ads render on a client canvas for preview, download, or a one-tap share to X.
+1. **The brief** — `GET /api/brief` makes three Context.dev calls in parallel (Brand API, homepage scrape, styleguide), derives a product summary and two describable brand colors, then one LLM call picks 6 concepts and writes copy. The whole response is cached on the Vercel CDN per domain (`s-maxage=3600`).
+2. **The ads** — the client fires 6 parallel `GET /api/ad` requests, one per concept. Everything the prompt needs travels in the query string, so each finished image is CDN-cached by its full URL — and since the brief is cached too, repeat visitors get identical URLs and every ad straight from the edge (`s-maxage=86400`). If the brand has a raster logo, it's attached as an image input so the model reproduces the real mark. Transient failures retry with backoff; failed slots get a free per-ad Retry button (errors are never cached).
+3. **Ship** — each ad fades in as its model finishes. Download one, download all six, or share to X.
 
 ---
 
@@ -139,10 +149,10 @@ cp .env.example .env
 npm run dev      # http://localhost:3000
 ```
 
-Open `http://localhost:3000`, paste a URL, pick your formats, and generate. That's it.
+Open `http://localhost:3000`, paste a domain, and watch six ads roll in. That's it.
 
 > [!NOTE]
-> When using OpenAI directly, `gpt-image-1` requires a verified OpenAI organization. If generation returns a 403, verify your org in the OpenAI dashboard (the AI Gateway doesn't have this requirement).
+> The Vercel AI Gateway key is recommended — it serves all six image models. With a direct OpenAI key, every ad renders with `gpt-image-1` instead (which requires a verified OpenAI organization).
 
 ---
 
@@ -152,9 +162,11 @@ All configuration is environment variables (see `.env.example`).
 
 | Variable | Required | Description |
 |---|---|---|
-| `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data and homepage scraping |
-| `AI_GATEWAY_API_KEY` | One of the two | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers copywriting (`gpt-4.1-mini`), reference selection, and image generation (`gpt-image-1`). Preferred when both are set |
-| `OPENAI_API_KEY` | One of the two | OpenAI key, used when no gateway key is set — same models, direct to OpenAI |
+| `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data, homepage scraping, and the styleguide mood |
+| `AI_GATEWAY_API_KEY` | One of the two | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and all six image models. Preferred when both are set |
+| `OPENAI_API_KEY` | One of the two | OpenAI key, used when no gateway key is set — OpenAI image models only |
+
+To swap image models, edit `AD_MODELS` in `src/lib/generate/concepts.ts`.
 
 ---
 
@@ -174,22 +186,21 @@ All configuration is environment variables (see `.env.example`).
 src/
   app/
     api/
-      brand/route.ts        # URL → Context.dev brand data + homepage markdown
-      generate/route.ts     # orchestrates the generation pipeline
-    page.tsx                # landing ↔ studio router
-  components/               # landing, studio, brand flex, ad canvas, share sheet…
+      brief/route.ts        # domain → brand data + mood + 6 picked concepts w/ copy (CDN-cached)
+      ad/route.ts           # one concept → one 1:1 ad image (CDN-cached by URL)
+    page.tsx                # the single page — hero morphs into the gallery
+  components/
+    ad-maker.tsx            # hero, brand bar, progress, 6-slot ad gallery
   hooks/
-    use-studio.ts           # all studio state, generation, download & share logic
+    use-ad-maker.ts         # flow state machine, parallel fetches, retries, downloads
   lib/
     context.ts              # typed wrapper around the Context.dev SDK
-    ad-render.ts            # canvas compositing / export
+    net.ts                  # domain normalization + SSRF guards
     generate/
-      references.ts         # choose candidate brand assets
-      reference-picker.ts   # vision model picks the single best asset
-      copywriter.ts         # brand-grounded headline generation
-      prompt-builder.ts     # crop-aware image prompts per format
-      image-generator.ts    # gpt-image-1 render (+ fallbacks)
-      presets.ts            # format specs (sizes, canvas, mode)
+      concepts.ts           # the 12 creative directions + prompt templates + AD_MODELS
+      brief.ts              # summary derivation + concept picking + copywriting
+      colors.ts             # hex → describable color phrases
+      provider.ts           # Vercel AI Gateway / OpenAI provider
 public/                     # logo, cover, ad examples
 ```
 
@@ -198,16 +209,16 @@ public/                     # logo, cover, ad examples
 ## Tech stack
 
 - ▲ **Next.js 15** (App Router) + React 19 + TypeScript
-- ⚡ **[Context.dev](https://link.context.dev/branda)** — brand data (logo, colors, imagery, socials) + web scraping
-- 🤖 **Vercel AI SDK** + **OpenAI** — `gpt-4.1-mini` for copy & reference selection, `gpt-image-1` for images
+- ⚡ **[Context.dev](https://link.context.dev/branda)** — brand data (logo, colors, industry), homepage scraping, and styleguide mood
+- 🤖 **Vercel AI SDK** + **AI Gateway** — `gpt-5.4-mini` for concept picking & copy; `gpt-image-1`, `gpt-image-2`, `grok-imagine-image`, `imagen-4.0`, `flux-2-pro`, and `recraft-v4.1` for the ads (one per ad)
+- 🌍 **Vercel CDN** — briefs and finished ads cached at the edge via `Cache-Control: s-maxage`
 - 🎨 **Tailwind CSS** + **Geist** font
-- 🖼️ **Canvas API** — client-side ad compositing and export
 
 ---
 
 ## Contributing
 
-Contributions are very welcome — new ad formats, better prompts, alternative image models, UI polish, you name it.
+Contributions are very welcome — new creative directions, better prompts, alternative image models, UI polish, you name it.
 
 1. **Fork** the repo and create a branch: `git checkout -b feat/my-feature`
 2. **Make your change** — keep it focused; small PRs get reviewed fast

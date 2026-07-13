@@ -46,18 +46,21 @@ Thanks for your interest in contributing! Branda is an open-source project by th
 
 | Area | Path |
 |---|---|
-| Brand resolution (Context.dev) | `src/app/api/brand/route.ts`, `src/lib/context.ts` |
-| Generation pipeline | `src/app/api/generate/route.ts`, `src/lib/generate/` |
-| Prompts | `src/lib/generate/prompt-builder.ts` |
-| Ad formats / sizes | `src/lib/generate/presets.ts`, `src/lib/formats.tsx` |
-| UI | `src/components/`, `src/hooks/use-studio.ts` |
-| Canvas rendering / export | `src/lib/ad-render.ts` |
+| The brief (brand + copy + concept picking) | `src/app/api/brief/route.ts`, `src/lib/generate/brief.ts` |
+| Ad rendering (one image per request) | `src/app/api/ad/route.ts` |
+| The 12 creative directions + prompts | `src/lib/generate/concepts.ts` |
+| Context.dev integration | `src/lib/context.ts` |
+| UI | `src/components/ad-maker.tsx`, `src/hooks/use-ad-maker.ts` |
 
-### Adding a new ad format
+### Adding a new creative direction
 
-1. Add a spec to `FORMAT_SPEC` in `src/lib/generate/presets.ts` (size, canvas, mode)
-2. Register it in `FORMATS` in `src/lib/formats.tsx` so it shows up in the studio
-3. If the aspect ratio is extreme, use `art` mode (backdrop only) — diffusion models mangle text in wide crops, which is why only the 1:1 post uses `poster` mode
+1. Add a concept to `ALL_AD_CONCEPTS` in `src/lib/generate/concepts.ts` — a key, a label, a `bestFor` descriptor (the concept-picking LLM reads it), and a `buildPrompt` template
+2. Reuse the shared `typography(...)` and `HARD_RULES` blocks so text stays clean
+3. Never put hex codes in a prompt — use the `colorA`/`colorB` phrases (image models literally print hex strings onto the art)
+
+### Swapping image models
+
+Edit `AD_MODELS_PRIMARY` / `AD_MODELS_SECONDARY` in `src/lib/generate/concepts.ts` — one model per ad, with the primary trio always in the first three slots. If a model accepts image inputs, add it to `IMAGE_INPUT_MODELS` so the brand's real logo gets attached.
 
 ## Opening a pull request
 
@@ -69,7 +72,7 @@ Thanks for your interest in contributing! Branda is an open-source project by th
 
 [Open an issue](https://github.com/context-dot-dev/ad-maker/issues) with:
 
-- What you did (the URL you pasted and formats you picked, if relevant)
+- What you did (the domain you pasted, if relevant)
 - What you expected vs. what happened
 - Any errors from the browser console or dev server output
 

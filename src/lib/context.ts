@@ -14,6 +14,7 @@ export type BrandAssets = {
   name: string | null;
   description: string | null;
   slogan: string | null;
+  industry: string | null;
   logoUrl: string | null;
   primaryColor: string | null;
   darkColor: string | null;
@@ -36,6 +37,7 @@ type RawBrand = {
   logos?: RawImage[];
   backdrops?: RawImage[];
   socials?: RawImage[];
+  industries?: { eic?: { industry?: string; subindustry?: string }[] };
 };
 type RawResponse = {
   brand?: RawBrand;
@@ -65,7 +67,7 @@ function pickDark(hexes: string[]): string {
 }
 
 export async function fetchBrand(domain: string): Promise<BrandAssets> {
-  const res = (await client().brand.retrieve({ domain, maxAgeMs: 0 })) as unknown as RawResponse;
+  const res = (await client().brand.retrieve({ domain })) as unknown as RawResponse;
   const brand = res.brand ?? {};
 
   const colors: BrandColor[] = (brand.colors ?? [])
@@ -80,11 +82,15 @@ export async function fetchBrand(domain: string): Promise<BrandAssets> {
     .filter((b): b is RawImage & { url: string } => isHttp(b.url))
     .map((b) => ({ url: b.url }));
 
+  const eic = brand.industries?.eic?.[0];
+  const industry = eic ? [eic.industry, eic.subindustry].filter(Boolean).join(" · ") : null;
+
   return {
     domain,
     name: brand.title ?? null,
     description: brand.description ?? null,
     slogan: brand.slogan ?? null,
+    industry,
     logoUrl: logos[0]?.url ?? null,
     primaryColor: colors[0]?.hex ?? null,
     darkColor: pickDark(colors.map((c) => c.hex)),
@@ -97,7 +103,27 @@ export async function fetchBrand(domain: string): Promise<BrandAssets> {
   };
 }
 
+/**
+ * Homepage as markdown. Doubles as the "is this site real / reachable" check —
+ * callers treat a rejection here as "couldn't reach this domain".
+ */
 export async function scrapePage(url: string): Promise<string> {
-  const res = await client().web.webScrapeMd({ url, useMainContentOnly: true, maxAgeMs: 0 });
+  const res = await client().web.webScrapeMd({ url, useMainContentOnly: true });
   return ((res as { markdown?: string }).markdown ?? "").slice(0, 4000);
+}
+
+/** Visual mood from the site's styleguide; safe fallback keeps prompts working. */
+export async function fetchMood(domain: string): Promise<string> {
+  try {
+    const res = (await client().web.extractStyleguide({ domain })) as {
+      styleguide?: { mood?: string; aesthetic?: string; personality?: string };
+    };
+    const sg = res.styleguide as Record<string, unknown> | undefined;
+    const mood = [sg?.mood, sg?.aesthetic, sg?.personality]
+      .filter((v): v is string => typeof v === "string" && v.length > 0)
+      .join(", ");
+    return mood || "modern, confident, premium";
+  } catch {
+    return "modern, confident, premium";
+  }
 }
