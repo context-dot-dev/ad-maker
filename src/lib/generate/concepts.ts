@@ -55,7 +55,7 @@ export const AD_MODELS_PRIMARY = [
 
 export const AD_MODELS_SECONDARY = [
   "google/imagen-4.0-generate-001",
-  "bfl/flux-2-pro",
+  "bytedance/seedream-4.5",
   "recraft/recraft-v4.1",
 ] as const;
 
@@ -70,7 +70,7 @@ export const IMAGE_INPUT_MODELS = new Set<string>([
   "openai/gpt-image-1",
   "openai/gpt-image-2",
   "xai/grok-imagine-image",
-  "bfl/flux-2-pro",
+  "bytedance/seedream-4.5",
 ]);
 
 export const ADS_PER_RUN = 6;

@@ -68,7 +68,7 @@ Real outputs, straight from Branda — one URL in, one ad out:
 - **Domain → 6 ads, one input** — no formats to pick, no messages to write, no style dropdowns. Paste a domain and the page morphs into a live gallery as each ad lands.
 - **Genuinely on-brand** — logo, colors, industry, and visual mood come from the real brand via [Context.dev](https://link.context.dev/branda), not generic stock.
 - **12 creative directions** — an LLM picks the 6 that fit the brand best (and feel varied), then writes a tailored headline and subheadline for each.
-- **6 image models racing** — one model per ad: `gpt-image-1`, `gpt-image-2`, and `grok-imagine-image` always take the top three slots, with `imagen-4.0`, `flux-2-pro`, and `recraft-v4.1` filling the rest. Every ad streams in the moment its model finishes.
+- **6 image models racing** — one model per ad: `gpt-image-1`, `gpt-image-2`, and `grok-imagine-image` always take the top three slots, with `imagen-4.0`, `seedream-4.5`, and `recraft-v4.1` filling the rest. Every ad streams in the moment its model finishes.
 - **Brand-grounded copy** — headlines are written from the brand's actual homepage content, in its own vocabulary — never invented positioning.
 - **CDN-cached** — briefs and finished ads are cached on the Vercel CDN, so the same domain never burns credits twice.
 - **All downloadable** — every ad individually, or all six at once. One-tap share to X with the ad copied to your clipboard.
@@ -210,7 +210,7 @@ public/                     # logo, cover, ad examples
 
 - ▲ **Next.js 15** (App Router) + React 19 + TypeScript
 - ⚡ **[Context.dev](https://link.context.dev/branda)** — brand data (logo, colors, industry), homepage scraping, and styleguide mood
-- 🤖 **Vercel AI SDK** + **AI Gateway** — `gpt-5.4-mini` for concept picking & copy; `gpt-image-1`, `gpt-image-2`, `grok-imagine-image`, `imagen-4.0`, `flux-2-pro`, and `recraft-v4.1` for the ads (one per ad)
+- 🤖 **Vercel AI SDK** + **AI Gateway** — `gpt-5.4-mini` for concept picking & copy; `gpt-image-1`, `gpt-image-2`, `grok-imagine-image`, `imagen-4.0`, `seedream-4.5`, and `recraft-v4.1` for the ads (one per ad)
 - 🌍 **Vercel CDN** — briefs and finished ads cached at the edge via `Cache-Control: s-maxage`
 - 🎨 **Tailwind CSS** + **Geist** font
 
