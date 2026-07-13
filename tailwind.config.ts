@@ -49,10 +49,6 @@ export default {
           "0%":   { opacity: "0", transform: "translateY(16px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        marquee: {
-          "0%":   { transform: "translateX(0)" },
-          "100%": { transform: "translateX(-50%)" },
-        },
         float: {
           "0%,100%": { transform: "translateY(0)" },
           "50%":     { transform: "translateY(-12px)" },
@@ -68,7 +64,6 @@ export default {
       },
       animation: {
         "fade-up": "fadeUp 0.6s cubic-bezier(0.21,1.02,0.73,1) both",
-        marquee: "marquee 36s linear infinite",
         float: "float 6s ease-in-out infinite",
         blob: "blob 16s ease-in-out infinite",
         shimmer: "shimmer 2.2s ease-in-out infinite",

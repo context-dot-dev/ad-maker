@@ -3,7 +3,6 @@
 import { useState } from "react";
 import ImageMouseTrail from "@/components/ui/mousetrail";
 import { Header, FortuneCookie } from "@/components/site-header";
-import { WarpedMarquee } from "@/components/warped-marquee";
 import { BoltIcon, DownloadIcon, GlobeIcon, RefreshIcon, XIcon } from "@/components/icons";
 import { AD_EXAMPLES, EXAMPLE_DOMAINS, ADS_PER_RUN } from "@/lib/constants";
 import type { AdMakerController, AdSlot } from "@/hooks/use-ad-maker";
@@ -69,10 +68,6 @@ function Hero({ s }: { s: AdMakerController }) {
             ))}
           </div>
         </form>
-      </div>
-
-      <div className="relative mt-12 sm:mt-14">
-        <WarpedMarquee />
       </div>
     </section>
   );

@@ -97,10 +97,6 @@
 }
 
 @layer utilities {
-  .marquee-mask {
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  }
   .pause-on-hover:hover * {
     animation-play-state: paused;
   }

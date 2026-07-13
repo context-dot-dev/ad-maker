@@ -1,10 +1,10 @@
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl">
+    <header>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-        <a href="/" className="flex items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Context.dev" className="h-7 w-auto" />
+        <a href="/" className="flex items-baseline gap-1.5">
+          <span className="text-[14px] font-semibold text-foreground">AdMaker</span>
+          <span className="text-[13px] text-muted-foreground">by Context.dev</span>
         </a>
         <a
           href="https://github.com/context-dot-dev/ad-maker"
