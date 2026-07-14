@@ -1,0 +1,61 @@
+{
+  "name": "branda",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generate on-brand ads from a public domain with Context.dev and Vercel AI Gateway.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/context-dot-dev/ad-maker.git"
+  },
+  "homepage": "https://github.com/context-dot-dev/ad-maker#readme",
+  "bugs": {
+    "url": "https://github.com/context-dot-dev/ad-maker/issues"
+  },
+  "keywords": [
+    "advertising",
+    "ai",
+    "brand-intelligence",
+    "context.dev",
+    "image-generation",
+    "next.js"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit --incremental false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^3.0.121",
+    "ai": "^6.0.193",
+    "context.dev": "^2.5.0",
+    "geist": "^1.7.2",
+    "next": "^15.5.18",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "server-only": "^0.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.10.5",
+    "@types/react": "19.0.3",
+    "@types/react-dom": "19.0.2",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^26.1.0",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "postcss": "$postcss"
+  }
+}

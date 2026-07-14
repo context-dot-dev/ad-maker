@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Context.dev documentation
+    url: https://docs.context.dev
+    about: Read the Context.dev API guides and reference documentation.
+  - name: Security report
+    url: https://github.com/context-dot-dev/ad-maker/security/policy
+    about: Follow the private vulnerability-reporting process instead of opening an issue.
