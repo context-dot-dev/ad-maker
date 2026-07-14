@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { createRef, useEffect, useRef } from "react";
 
 interface ImageMouseTrailProps {
@@ -32,7 +31,8 @@ export default function ImageMouseTrail({
   useEffect(() => {
     // Desktop-only flourish. On touch devices the trail spawns while scrolling
     // and parks images over the headline, so don't attach at all.
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches)
+      return;
 
     const activate = (image: HTMLImageElement, x: number, y: number) => {
       image.style.left = `${x}px`;
@@ -41,7 +41,10 @@ export default function ImageMouseTrail({
       image.style.zIndex = String(zIndex.current);
       zIndex.current++;
       image.dataset.status = "active";
-      if (fadeAnimation) setTimeout(() => { image.dataset.status = "inactive"; }, 1500);
+      if (fadeAnimation)
+        setTimeout(() => {
+          image.dataset.status = "inactive";
+        }, 1500);
       last.current = { x, y };
     };
 
@@ -49,10 +52,14 @@ export default function ImageMouseTrail({
       // Only spawn on the left/right thirds — keep the center (headline) clean.
       const w = window.innerWidth;
       if (x > w * 0.32 && x < w * 0.68) return;
-      if (Math.hypot(x - last.current.x, y - last.current.y) <= w / distance) return;
+      if (Math.hypot(x - last.current.x, y - last.current.y) <= w / distance)
+        return;
       const len = refs.current.length;
       const lead = refs.current[globalIndex.current % len].current;
-      const tail = refs.current[(((globalIndex.current - maxNumberOfImages) % len) + len) % len]?.current;
+      const tail =
+        refs.current[
+          (((globalIndex.current - maxNumberOfImages) % len) + len) % len
+        ]?.current;
       if (lead) activate(lead, x, y);
       if (tail) tail.dataset.status = "inactive";
       globalIndex.current++;
@@ -64,7 +71,15 @@ export default function ImageMouseTrail({
   }, [distance, maxNumberOfImages, fadeAnimation]);
 
   return (
-    <div aria-hidden className={cn("pointer-events-none fixed inset-0 z-0 overflow-hidden", className)}>
+    <div
+      aria-hidden
+      className={[
+        "pointer-events-none fixed inset-0 z-0 overflow-hidden",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {items.map((item, index) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -73,10 +88,12 @@ export default function ImageMouseTrail({
           alt=""
           ref={refs.current[index]}
           data-status="inactive"
-          className={cn(
+          className={[
             "absolute -translate-x-1/2 -translate-y-1/2 scale-0 object-cover opacity-0 transition-all duration-300 data-[status=active]:scale-100 data-[status=active]:opacity-100 data-[status=active]:duration-500 data-[status=active]:ease-out-expo",
             imgClass,
-          )}
+          ]
+            .filter(Boolean)
+            .join(" ")}
         />
       ))}
     </div>

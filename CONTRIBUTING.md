@@ -35,32 +35,38 @@ Thanks for your interest in contributing! Branda is an open-source project by th
 - Create a branch from `main`: `git checkout -b feat/my-feature` (or `fix/...`, `docs/...`)
 - Keep PRs focused on a single change — small PRs get reviewed and merged fastest
 - Match the existing code style: TypeScript, App Router conventions, Tailwind for styling
-- Before pushing, make sure both pass:
+- Before pushing, run the complete verification gate:
 
   ```bash
-  npm run typecheck
-  npm run build
+  npm run verify
   ```
 
 ## Where things live
 
+Use the domain names and relationships defined in [CONTEXT.md](./CONTEXT.md)
+when changing an interface or moving behavior between modules.
+
 | Area | Path |
 |---|---|
-| The brief (brand + copy + concept picking) | `src/app/api/brief/route.ts`, `src/lib/generate/brief.ts` |
-| Ad rendering (one image per request) | `src/app/api/ad/route.ts` |
-| The 12 creative directions + prompts | `src/lib/generate/concepts.ts` |
+| Shared Ad Run contract | `src/lib/ad-run.ts` |
+| Brief planning | `src/lib/generate/planner.ts`, `src/lib/generate/brief.ts` |
+| Rendered Ad generation | `src/lib/generate/renderer.ts` |
+| Creative Direction catalog + prompts | `src/lib/generate/directions.ts`, `src/lib/generate/concepts.ts` |
+| Image Model catalog | `src/lib/generate/models.ts` |
+| Public raster-logo policy | `src/lib/public-raster.ts` |
 | Context.dev integration | `src/lib/context.ts` |
 | UI | `src/components/ad-maker.tsx`, `src/hooks/use-ad-maker.ts` |
 
 ### Adding a new creative direction
 
-1. Add a concept to `ALL_AD_CONCEPTS` in `src/lib/generate/concepts.ts` — a key, a label, a `bestFor` descriptor (the concept-picking LLM reads it), and a `buildPrompt` template
-2. Reuse the shared `typography(...)` and `HARD_RULES` blocks so text stays clean
-3. Never put hex codes in a prompt — use the `colorA`/`colorB` phrases (image models literally print hex strings onto the art)
+1. Add its key, label, and `bestFor` metadata to `CREATIVE_DIRECTIONS` in `src/lib/generate/directions.ts`
+2. Add the matching prompt implementation in `src/lib/generate/concepts.ts`; the exhaustive registry reports a type error if one is missing
+3. Reuse the shared `typography(...)` and `HARD_RULES` blocks so text stays clean
+4. Never put hex codes in a prompt — use the `colorA`/`colorB` phrases (image models literally print hex strings onto the art)
 
 ### Swapping image models
 
-Edit `AD_MODELS_PRIMARY` / `AD_MODELS_SECONDARY` in `src/lib/generate/concepts.ts` — one model per ad, with the primary trio always in the first three slots. If a model accepts image inputs, add it to `IMAGE_INPUT_MODELS` so the brand's real logo gets attached.
+Edit `IMAGE_MODELS` in `src/lib/generate/models.ts`. Each Image Model record declares its primary/secondary tier and whether it accepts a raster logo; the shared contract verifies six distinct assignments and primary-first placement.
 
 ## Opening a pull request
 

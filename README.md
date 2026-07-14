@@ -28,15 +28,15 @@ Paste `notion.com` and Branda will:
 - 🎨 Pull the brand's logo, palette, industry, and visual mood from [Context.dev](https://link.context.dev/branda)
 - 👀 Read the homepage so the copy speaks in the brand's real voice
 - 🧠 Have an LLM pick 6 of 12 creative directions and write tailored copy for each
-- 🖼️ Render 6 distinct 1:1 ads in parallel — every single ad by a **different image model** (OpenAI, xAI, Google, Black Forest Labs, Recraft)
-- ⚡ Cache every brief and ad on the Vercel CDN, so repeat domains cost nothing
+- 🖼️ Render 6 distinct 1:1 ads in parallel — every single ad by a **different image model** (OpenAI, xAI, Google, ByteDance, Recraft)
+- ⚡ Cache every brief and ad on the Vercel CDN to reduce duplicate generation while entries are fresh
 - 📥 Download each ad (or all six) and share straight to X
 
 ---
 
 ## Examples
 
-Real outputs, straight from Branda — one URL in, one ad out:
+Real outputs, straight from Branda — one URL in, six ads out:
 
 | | | |
 |:---:|:---:|:---:|
@@ -70,7 +70,7 @@ Real outputs, straight from Branda — one URL in, one ad out:
 - **12 creative directions** — an LLM picks the 6 that fit the brand best (and feel varied), then writes a tailored headline and subheadline for each.
 - **6 image models racing** — one model per ad: `gpt-image-1`, `gpt-image-2`, and `grok-imagine-image` always take the top three slots, with `imagen-4.0`, `seedream-4.5`, and `recraft-v4.1` filling the rest. Every ad streams in the moment its model finishes.
 - **Brand-grounded copy** — headlines are written from the brand's actual homepage content, in its own vocabulary — never invented positioning.
-- **CDN-cached** — briefs and finished ads are cached on the Vercel CDN, so the same domain never burns credits twice.
+- **CDN-cached** — fresh briefs and finished ads are reused from the Vercel CDN, reducing duplicate generation work.
 - **All downloadable** — every ad individually, or all six at once. One-tap share to X with the ad copied to your clipboard.
 
 ---
@@ -109,7 +109,7 @@ All twelve prompt templates share a strict typography spec (the only text allowe
         ┌────────────────────────────────────────────────┐
         │  one LLM call picks 6 of 12 concepts and       │  gpt-5.4-mini
         │  writes headline + subheadline per concept;    │
-        │  3 image models shuffled across the 6 picks    │
+        │  6 distinct Image Models, primary tier first   │
         └────────────────────────────────────────────────┘
                         │  { brief, concepts[6] }   ← cached on Vercel CDN
                         ▼
@@ -120,7 +120,7 @@ All twelve prompt templates share a strict typography spec (the only text allowe
 ```
 
 1. **The brief** — `GET /api/brief` makes three Context.dev calls in parallel (Brand API, homepage scrape, styleguide), derives a product summary and two describable brand colors, then one LLM call picks 6 concepts and writes copy. The whole response is cached on the Vercel CDN per domain (`s-maxage=3600`).
-2. **The ads** — the client fires 6 parallel `GET /api/ad` requests, one per concept. Everything the prompt needs travels in the query string, so each finished image is CDN-cached by its full URL — and since the brief is cached too, repeat visitors get identical URLs and every ad straight from the edge (`s-maxage=86400`). If the brand has a raster logo, it's attached as an image input so the model reproduces the real mark. Transient failures retry with backoff; failed slots get a free per-ad Retry button (errors are never cached).
+2. **The ads** — the client fires 6 parallel `GET /api/ad` requests, one per concept. Everything the prompt needs travels in the query string, so each finished image is CDN-cached by its full URL — and since the brief is cached too, repeat visitors can reuse fresh ads from the edge (`s-maxage=86400`). If the brand has a raster logo, it's attached as an image input so the model reproduces the real mark. Transient failures retry with backoff; failed slots expose a per-ad Retry button (errors are never cached).
 3. **Ship** — each ad fades in as its model finishes. Download one, download all six, or share to X.
 
 ---
@@ -165,7 +165,7 @@ All configuration is environment variables (see `.env.example`).
 | `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data, homepage scraping, and the styleguide mood |
 | `AI_GATEWAY_API_KEY` | Yes | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and all six image models |
 
-To swap image models, edit `AD_MODELS` in `src/lib/generate/concepts.ts`.
+To swap image models, edit the catalog in `src/lib/generate/models.ts`. Each record owns its placement tier, display name, and raster-logo capability.
 
 ---
 
@@ -176,10 +176,14 @@ To swap image models, edit `AD_MODELS` in `src/lib/generate/concepts.ts`.
 | `npm run dev` | Start the Next.js dev server |
 | `npm run build` / `npm run start` | Production build / serve |
 | `npm run typecheck` | TypeScript checks |
+| `npm test` | Run the interface and policy test suite |
+| `npm run verify` | Run type checks, tests, and the production build |
 
 ---
 
 ## Project structure
+
+The canonical domain language and module relationships live in [CONTEXT.md](./CONTEXT.md).
 
 ```
 src/
@@ -191,15 +195,24 @@ src/
   components/
     ad-maker.tsx            # hero, brand bar, progress, 6-slot ad gallery
   hooks/
-    use-ad-maker.ts         # flow state machine, parallel fetches, retries, downloads
+    use-ad-maker.ts         # legal Gallery stages, parallel rendering, retries, URL ownership
   lib/
-    context.ts              # typed wrapper around the Context.dev SDK
-    net.ts                  # domain normalization + SSRF guards
+    ad-run-policy.ts        # fixed run size and shared field limits
+    ad-run.ts               # shared Ad Run contract, invariants, and canonical GET codecs
+    brand-color.ts          # canonical Brand color validation
+    context.ts              # Context.dev Brand adapter
+    net.ts                  # canonical domain normalization
+    public-raster.ts        # DNS-pinned, size-bounded public logo loading
+    public-url.ts           # cross-runtime public URL syntax policy
     generate/
-      concepts.ts           # the 12 creative directions + prompt templates + AD_MODELS
-      brief.ts              # summary derivation + concept picking + copywriting
+      directions.ts         # cross-runtime Creative Direction catalog
+      models.ts             # Image Model tiers, names, and capabilities
+      concepts.ts           # server-only prompt implementations
+      brief.ts              # homepage summary + concept copywriting
       colors.ts             # hex → describable color phrases
-      provider.ts           # Vercel AI Gateway provider
+      gateway.ts            # internal Vercel AI Gateway adapter
+      planner.ts            # domain → validated Brief + six Planned Concepts
+      renderer.ts           # one Planned Concept → retried Rendered Ad
 public/                     # logo, cover, ad examples
 ```
 
@@ -221,7 +234,7 @@ Contributions are very welcome — new creative directions, better prompts, alte
 
 1. **Fork** the repo and create a branch: `git checkout -b feat/my-feature`
 2. **Make your change** — keep it focused; small PRs get reviewed fast
-3. **Check it passes** — `npm run typecheck && npm run build`
+3. **Check it passes** — `npm run verify`
 4. **Open a PR** describing what changed and why (screenshots or generated ads are a huge plus)
 
 Found a bug or have an idea? [Open an issue](https://github.com/context-dot-dev/ad-maker/issues) — no contribution is too small.
@@ -232,7 +245,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
 ## Built using [Context.dev](https://link.context.dev/branda)
 
-Every brand asset in Branda — the logos, colors, campaign imagery, and homepage content — comes from a single API. Want to build your own brand-aware tool or agent?
+Branda gets its Brand metadata, logos, colors, homepage content, and visual styleguide from a single API. Want to build your own brand-aware tool or agent?
 
 ```ts
 import ContextDev from "context.dev";

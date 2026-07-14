@@ -1,3 +1,5 @@
+import { normalizeBrandColorHex } from "@/lib/brand-color";
+
 /**
  * Image models love to literally print hex strings like "#543cfc" onto buttons
  * when handed raw codes, so brand colors are always converted to plain-English
@@ -7,9 +9,10 @@
 type Hsl = { h: number; s: number; l: number };
 
 function hexToHsl(hex: string): Hsl | null {
-  const raw = hex.replace("#", "").trim();
+  const normalized = normalizeBrandColorHex(hex);
+  if (!normalized) return null;
+  const raw = normalized.slice(1);
   const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
-  if (!/^[0-9a-f]{6}/i.test(full)) return null;
   const n = parseInt(full.slice(0, 6), 16);
   const r = ((n >> 16) & 255) / 255;
   const g = ((n >> 8) & 255) / 255;
