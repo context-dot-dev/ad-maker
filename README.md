@@ -189,7 +189,6 @@ All configuration is environment variables (see `.env.example`).
 |---|---|---|
 | `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers all four [Context.dev API calls](#contextdev-apis-used) |
 | `AI_GATEWAY_API_KEY` | Yes | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and up to six image models |
-| `NEXT_PUBLIC_PLAUSIBLE_SCRIPT_URL` | No | Opt-in Plausible script URL; analytics are completely disabled when omitted |
 
 API keys are read only by server code. Never prefix either secret with `NEXT_PUBLIC_`, commit `.env`, or paste a key into an issue, log, or screenshot.
 
@@ -211,7 +210,7 @@ The UI and renderer are separable from Context.dev enrichment, so you can reuse 
 
 The included `/api/brief` and `/api/ad` routes invoke billable services and are intentionally callable by the browser. Before exposing your own deployment, add authentication and/or rate limiting appropriate to your audience, set provider spend alerts, and understand the cost of up to four Context.dev calls, one text-model call, and six image-model calls per uncached Ad Run. Successful responses benefit from a compatible shared CDN cache; failures use `no-store`.
 
-No analytics run by default. Set `NEXT_PUBLIC_PLAUSIBLE_SCRIPT_URL` only if you intentionally want Plausible on your deployment and have handled any consent or disclosure requirements. The default UI also requests a Google-hosted font and Google favicon service; privacy-sensitive forks can self-host or remove those requests.
+The app loads [Plausible](https://plausible.io) (privacy-friendly, cookieless analytics) via a script tag in `src/app/layout.tsx`; forks should swap in their own Plausible script URL or remove the tag. The default UI also requests a Google-hosted font and Google favicon service; privacy-sensitive forks can self-host or remove those requests.
 
 ---
 
