@@ -3,7 +3,7 @@ export function Header() {
     <header>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
         <a href="/" className="flex items-baseline gap-1.5">
-          <span className="text-[14px] font-semibold text-foreground">AdMaker</span>
+          <span className="text-[14px] font-semibold text-foreground">Branda</span>
           <span className="text-[13px] text-muted-foreground">by Context.dev</span>
         </a>
         <a

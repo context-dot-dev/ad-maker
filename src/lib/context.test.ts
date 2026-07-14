@@ -25,7 +25,7 @@ vi.mock("context.dev", () => {
   return { default: MockContextDev };
 });
 
-import { fetchProducts, fetchStyleguide } from "./context";
+import { fetchBrand, fetchProducts, fetchStyleguide } from "./context";
 
 const originalApiKey = process.env.CONTEXT_DEV_API_KEY;
 
@@ -181,6 +181,39 @@ describe("fetchProducts", () => {
     await expect(fetchProducts("stripe.com")).rejects.toMatchObject({
       name: "ZodError",
     });
+  });
+});
+
+describe("fetchBrand", () => {
+  beforeEach(() => {
+    process.env.CONTEXT_DEV_API_KEY = "test-context-key";
+    sdk.retrieve.mockReset();
+  });
+
+  afterAll(() => {
+    if (originalApiKey === undefined) {
+      delete process.env.CONTEXT_DEV_API_KEY;
+    } else {
+      process.env.CONTEXT_DEV_API_KEY = originalApiKey;
+    }
+  });
+
+  it("uses the current by-domain Brand API request shape", async () => {
+    const controller = new AbortController();
+    sdk.retrieve.mockResolvedValueOnce({
+      brand: { title: "Stripe", logos: [] },
+    });
+
+    await expect(
+      fetchBrand("stripe.com", controller.signal),
+    ).resolves.toMatchObject({
+      domain: "stripe.com",
+      name: "Stripe",
+    });
+    expect(sdk.retrieve).toHaveBeenCalledWith(
+      { type: "by_domain", domain: "stripe.com" },
+      { signal: controller.signal },
+    );
   });
 });
 

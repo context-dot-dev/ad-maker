@@ -2,6 +2,8 @@
 
 Thanks for your interest in contributing! Branda is an open-source project by the [Context.dev](https://link.context.dev/branda) team, and we welcome contributions of all sizes — bug fixes, new ad formats, better prompts, docs, anything.
 
+By participating, you agree to follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
 ## Getting set up
 
 1. **Fork and clone** the repo:
@@ -28,7 +30,7 @@ Thanks for your interest in contributing! Branda is an open-source project by th
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000), paste a URL, and make sure generation works end to end before you start changing things.
+   Open [http://localhost:3000](http://localhost:3000), paste a public domain, and make sure generation works end to end before you start changing things.
 
 ## Making changes
 
@@ -83,6 +85,8 @@ Edit `IMAGE_MODELS` in `src/lib/generate/models.ts`. Each Image Model record dec
 - Any errors from the browser console or dev server output
 
 **Never include your API keys in issues, logs, or screenshots.**
+
+Please report suspected vulnerabilities privately using the process in [SECURITY.md](./SECURITY.md), not in a public issue.
 
 ## License
 

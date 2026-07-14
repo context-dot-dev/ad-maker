@@ -97,7 +97,7 @@ const SHARE_URL =
 const DEFAULT_ERROR = "We couldn't read that site. Try another domain.";
 
 function buildShareCaption(domain: string): string {
-  return `just turned ${domain} into scroll-stopping, on-brand ads in seconds with @getcontextdev 🎨\n\npaste any URL → instant on-brand ads. no designer needed.`;
+  return `just turned ${domain} into scroll-stopping, on-brand ads in seconds with @getcontextdev 🎨\n\npaste a public domain → instant on-brand ads. no designer needed.`;
 }
 
 function extensionFor(blob: Blob): ImageExtension {

@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in Branda
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Branda. Never include API keys, private data, or paid-provider response bodies.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Give the smallest set of steps that consistently reproduces the problem.
+      placeholder: |
+        1. Run ...
+        2. Enter ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: domain
+    attributes:
+      label: Public domain used
+      description: If relevant, provide only the public domain submitted to Branda.
+      placeholder: example.com
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the commit, Node version, browser, operating system, and hosting platform as relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Remove API keys, request headers, private URLs, and customer data first.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed secrets and private data from this report.
+          required: true

@@ -85,7 +85,10 @@ export async function fetchBrand(
   domain: string,
   signal?: AbortSignal,
 ): Promise<BrandProfile> {
-  const res = (await client().brand.retrieve({ domain }, { signal })) as unknown as RawResponse;
+  const res = (await client().brand.retrieve(
+    { type: "by_domain", domain },
+    { signal },
+  )) as unknown as RawResponse;
   const brand = res.brand ?? {};
 
   const logos = (brand.logos ?? []).flatMap(({ url }) => {

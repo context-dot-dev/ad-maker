@@ -62,7 +62,7 @@ function Hero({ s }: { s: IdleController }) {
 
       <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-5 text-center">
         <p className="mb-5 -skew-x-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground animate-fade-up">
-          Pulls brand data from any site on the web
+          Pulls brand data from public sites
         </p>
         <h1 className="text-gradient text-4xl font-semibold leading-[1.05] tracking-tight animate-fade-up [animation-delay:60ms] min-[430px]:text-5xl sm:text-[4.25rem]">
           On-brand ads,
@@ -70,7 +70,7 @@ function Hero({ s }: { s: IdleController }) {
           generated in seconds.
         </h1>
         <p className="mt-5 max-w-xl text-balance text-[16px] leading-relaxed text-muted-foreground animate-fade-up [animation-delay:120ms]">
-          Paste any domain. We pull the logo, colors, style, and products, then
+          Paste a public domain. We pull the logo, colors, style, and products, then
           generate {AD_RUN_MIN_SIZE}–{AD_RUN_MAX_SIZE} ready-to-ship ads: three
           for the company and up to three for its products.
         </p>
