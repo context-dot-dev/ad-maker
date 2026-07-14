@@ -92,8 +92,10 @@ export function createAdRenderer(dependencies: AdRendererDependencies): AdRender
         summary: query.summary,
         industry: query.industry,
         mood: query.mood,
+        fontFamily: query.fontFamily,
         colorA: query.colorA,
         colorB: query.colorB,
+        subject: query.subject,
         headline: query.headline,
         subheadline: query.subheadline,
       };

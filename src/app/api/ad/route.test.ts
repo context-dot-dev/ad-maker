@@ -16,6 +16,7 @@ const brief: AdBrief = {
   industry: "Technology · Payments",
   summary: "Stripe provides programmable financial services.",
   mood: "modern, confident, premium",
+  fontFamily: "Inter",
   colorA: "vivid violet",
   colorB: "deep navy",
   logoUrl: "https://cdn.example/stripe.png",
@@ -25,11 +26,25 @@ const brief: AdBrief = {
 const concept: PlannedConcept = {
   key: "typographic",
   model: "openai/gpt-image-1",
+  subject: { kind: "company" },
   headline: "Move money",
   subheadline: "Financial infrastructure for every business",
 };
 
+const productConcept: PlannedConcept = {
+  key: "product_hero",
+  model: "google/imagen-4.0-generate-001",
+  subject: {
+    kind: "product",
+    name: "Payments",
+    description: "Accept payments online and in person.",
+  },
+  headline: "Accept Anything",
+  subheadline: "Payments built for every way customers pay",
+};
+
 const href = renderedAdHref(brief, concept);
+const productHref = renderedAdHref(brief, productConcept);
 const request = (path = href) => new Request(new URL(path, "https://branda.test"));
 
 describe("GET /api/ad", () => {
@@ -72,6 +87,30 @@ describe("GET /api/ad", () => {
     expect(body).toContain("temporarily unavailable");
     expect(body).not.toContain("AI_GATEWAY_API_KEY");
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("decodes and forwards a Product subject from its canonical href", async () => {
+    const bytes = new Uint8Array([7, 8, 9]);
+    mocks.render.mockResolvedValue({
+      ok: true,
+      value: {
+        bytes,
+        mediaType: "image/png",
+        concept: productConcept.key,
+        model: productConcept.model,
+      },
+    });
+
+    const response = await GET(request(productHref));
+
+    expect(response.status).toBe(200);
+    expect(mocks.render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: productConcept.subject,
+        canonicalHref: productHref,
+      }),
+      expect.any(AbortSignal),
+    );
   });
 
   it.each([

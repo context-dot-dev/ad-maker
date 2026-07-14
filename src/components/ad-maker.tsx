@@ -10,7 +10,7 @@ import {
   RefreshIcon,
   XIcon,
 } from "@/components/icons";
-import { AD_RUN_SIZE } from "@/lib/ad-run";
+import { AD_RUN_MAX_SIZE, AD_RUN_MIN_SIZE } from "@/lib/ad-run";
 import { directionByKey } from "@/lib/generate/directions";
 import { imageModelById } from "@/lib/generate/models";
 import type { AdMakerController, AdSlot } from "@/hooks/use-ad-maker";
@@ -70,9 +70,9 @@ function Hero({ s }: { s: IdleController }) {
           generated in seconds.
         </h1>
         <p className="mt-5 max-w-xl text-balance text-[16px] leading-relaxed text-muted-foreground animate-fade-up [animation-delay:120ms]">
-          Paste any domain. We pull the logo, colors, and style, then generate{" "}
-          {AD_RUN_SIZE} ready-to-ship ad creatives with AI. No briefs, no
-          settings — just a URL.
+          Paste any domain. We pull the logo, colors, style, and products, then
+          generate {AD_RUN_MIN_SIZE}–{AD_RUN_MAX_SIZE} ready-to-ship ads: three
+          for the company and up to three for its products.
         </p>
 
         <form
@@ -100,7 +100,7 @@ function Hero({ s }: { s: IdleController }) {
               disabled={!s.domain.trim()}
               className="btn-gradient w-full shrink-0 whitespace-nowrap sm:w-auto"
             >
-              ✨ Generate {AD_RUN_SIZE} Ads
+              ✨ Generate {AD_RUN_MIN_SIZE}–{AD_RUN_MAX_SIZE} Ads
             </button>
           </div>
           {s.error && <p className="mt-2 text-xs text-red-500">{s.error}</p>}
@@ -145,7 +145,7 @@ function Shimmer() {
 function Workspace({ s }: { s: WorkspaceController }) {
   const cleanDomain = s.submittedDomain;
   const generating = s.phase === "generating";
-  const total = AD_RUN_SIZE;
+  const total = s.phase === "brief" ? AD_RUN_MAX_SIZE : s.slots.length;
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-5 py-8">
@@ -163,7 +163,7 @@ function Workspace({ s }: { s: WorkspaceController }) {
               </p>
               <p className="text-[11px] text-muted-foreground">
                 {s.phase === "brief"
-                  ? `Pulling the logo, palette, and voice, then picking ${AD_RUN_SIZE} creative directions`
+                  ? "Planning three company ads plus up to three product ads"
                   : `Each ad lands the moment its model finishes · usually 1–3 min · keep this tab open`}
               </p>
             </div>
@@ -195,14 +195,14 @@ function Workspace({ s }: { s: WorkspaceController }) {
         {s.phase !== "brief"
           ? s.slots.map((slot, i) => (
               <AdCard
-                key={slot.concept.key}
+                key={`${slot.concept.model}:${slot.concept.key}:${slot.concept.subject.kind}:${i}`}
                 slot={slot}
                 index={i}
                 onRetry={() => s.retrySlot(i)}
                 onDownload={() => s.downloadAd(i)}
               />
             ))
-          : Array.from({ length: AD_RUN_SIZE }, (_, i) => (
+          : Array.from({ length: AD_RUN_MAX_SIZE }, (_, i) => (
               <div
                 key={i}
                 className="animate-fade-up overflow-hidden rounded-2xl border border-border bg-card"
@@ -331,6 +331,12 @@ function AdCard({
   const c = slot.concept;
   const directionLabel = directionByKey(c.key)?.label ?? c.key;
   const modelName = imageModelById(c.model)?.displayName ?? c.model;
+  const productName = c.subject.kind === "product" ? c.subject.name : null;
+  const cardTitle = productName ?? directionLabel;
+  const subjectLabel = productName ? `Product · ${directionLabel}` : "Company";
+  const imageAlt = productName
+    ? `${productName} product ad in the ${directionLabel} creative direction`
+    : `Company ad in the ${directionLabel} creative direction`;
 
   return (
     <div
@@ -340,10 +346,10 @@ function AdCard({
       <div className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-foreground">
-            {directionLabel}
+            {cardTitle}
           </p>
           <p className="truncate text-[11px] text-muted-foreground">
-            “{c.headline}”
+            {subjectLabel} · “{c.headline}”
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-muted/60 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -357,7 +363,7 @@ function AdCard({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={slot.url}
-              alt={`${directionLabel} ad`}
+              alt={imageAlt}
               onLoad={() => setLoaded(true)}
               className={`size-full object-cover transition-all duration-700 ${loaded ? "scale-100 opacity-100 blur-0" : "scale-[1.03] opacity-0 blur-md"}`}
             />

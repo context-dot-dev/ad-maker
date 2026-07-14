@@ -1,7 +1,6 @@
 import {
   AD_PRIMARY_MODEL_COUNT,
-  AD_RUN_SIZE,
-  type Six,
+  AD_RUN_MAX_SIZE,
 } from "@/lib/ad-run-policy";
 
 export type ImageModelTier = "primary" | "secondary";
@@ -36,7 +35,7 @@ export const IMAGE_MODELS = [
     id: "bytedance/seedream-4.5",
     tier: "secondary",
     displayName: "Seedream 4.5",
-    rasterLogo: true,
+    rasterLogo: false,
   },
   {
     id: "recraft/recraft-v4.1",
@@ -54,7 +53,7 @@ export const IMAGE_MODELS = [
 export type ImageModel = (typeof IMAGE_MODELS)[number];
 export type ImageModelId = ImageModel["id"];
 
-const imageModelCount: typeof AD_RUN_SIZE = IMAGE_MODELS.length;
+const imageModelCount: typeof AD_RUN_MAX_SIZE = IMAGE_MODELS.length;
 
 export const IMAGE_MODEL_IDS = IMAGE_MODELS.map(({ id }) => id) as [
   ImageModelId,
@@ -79,7 +78,7 @@ if (primaryModelCount !== AD_PRIMARY_MODEL_COUNT) {
 /** Assign every Image Model once, with primary placements before secondary ones. */
 export function assignImageModels(
   random: () => number = Math.random,
-): Six<ImageModelId> {
+): readonly ImageModelId[] {
   const shuffle = (models: readonly ImageModel[]) => {
     const result = [...models];
     for (let index = result.length - 1; index > 0; index--) {
@@ -96,5 +95,5 @@ export function assignImageModels(
   if (assigned.length !== imageModelCount) {
     throw new Error(`Expected ${imageModelCount} Image Models, received ${assigned.length}`);
   }
-  return assigned as unknown as Six<ImageModelId>;
+  return assigned;
 }

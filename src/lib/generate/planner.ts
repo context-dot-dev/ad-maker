@@ -4,7 +4,7 @@ import {
   type AdBrief,
   type AdRunPlan,
   type PlannedConcept,
-  type Six,
+  type Product,
 } from "@/lib/ad-run";
 import {
   normalizeBrandColorHex,
@@ -12,11 +12,14 @@ import {
 } from "@/lib/brand-color";
 import {
   fetchBrand,
-  fetchMood,
+  fetchProducts,
+  fetchStyleguide,
   hasContextConfiguration,
   scrapePage,
   type BrandProfile,
+  type StyleguideProfile,
 } from "@/lib/context";
+import { normalizeFontFamily } from "@/lib/font-family";
 import { normalizeDomain } from "@/lib/net";
 import { parsePublicHttpUrl } from "@/lib/public-url";
 import { deriveSummaryFromMarkdown, pickConceptsAndCraftCopy } from "./brief";
@@ -31,6 +34,7 @@ export type AdRunPlanningFailure =
   | { code: "aborted" }
   | { code: "domain-unreachable"; cause: unknown }
   | { code: "brand-unavailable"; cause: unknown }
+  | { code: "products-unavailable"; cause: unknown }
   | { code: "internal"; cause: unknown };
 
 export type AdRunPlanningResult =
@@ -45,15 +49,20 @@ export type BrandResearchAdapter = {
   isReady(): boolean;
   fetchBrand(domain: string, signal?: AbortSignal): Promise<BrandProfile>;
   scrapePage(url: string, signal?: AbortSignal): Promise<string>;
-  fetchMood(domain: string, signal?: AbortSignal): Promise<string>;
+  fetchStyleguide(
+    domain: string,
+    signal?: AbortSignal,
+  ): Promise<StyleguideProfile>;
+  fetchProducts(domain: string, signal?: AbortSignal): Promise<Product[]>;
 };
 
 export type ConceptPlanningAdapter = {
   isReady(): boolean;
   planConcepts(
     brief: AdBrief,
+    products: readonly Product[],
     signal?: AbortSignal,
-  ): Promise<Six<PlannedConcept>>;
+  ): Promise<readonly PlannedConcept[]>;
 };
 
 export type AdRunPlannerAdapters = {
@@ -90,9 +99,9 @@ function buildBrief(
   domain: string,
   brand: BrandProfile,
   markdown: string,
-  mood: string,
+  styleguide: StyleguideProfile,
 ): AdBrief {
-  const colors = boundedColors(brand.colors);
+  const colors = boundedColors(styleguide.colors);
   const { a: colorA, b: colorB } = pickBrandColors(colors);
   const brandName = bounded(brand.name, AD_RUN_LIMITS.brandName) || domain;
   const description =
@@ -105,7 +114,8 @@ function buildBrief(
     description,
     industry: bounded(brand.industry, AD_RUN_LIMITS.industry),
     summary: deriveSummaryFromMarkdown(markdown),
-    mood: bounded(mood, AD_RUN_LIMITS.mood) || DEFAULT_MOOD,
+    mood: bounded(styleguide.mood, AD_RUN_LIMITS.mood) || DEFAULT_MOOD,
+    fontFamily: normalizeFontFamily(styleguide.fontFamily),
     colorA: bounded(colorA, AD_RUN_LIMITS.promptColor),
     colorB: bounded(colorB, AD_RUN_LIMITS.promptColor),
     logoUrl: boundedLogoUrl(brand.logoUrl),
@@ -114,8 +124,9 @@ function buildBrief(
 }
 
 /**
- * Domain -> Brief -> six Planned Concepts. The returned function is the whole
- * test surface; partial-failure policy and contract validation stay local.
+ * Domain -> Brief -> three Company concepts plus one to three Product concepts.
+ * The returned function is the whole test surface; partial-failure policy and
+ * contract validation stay local.
  */
 export function createAdRunPlanner(adapters: AdRunPlannerAdapters): AdRunPlanner {
   return async (rawDomain, signal) => {
@@ -132,11 +143,13 @@ export function createAdRunPlanner(adapters: AdRunPlannerAdapters): AdRunPlanner
         return { ok: false, error: { code: "not-configured" } };
       }
 
-      const [brandResult, pageResult, moodResult] = await Promise.allSettled([
-        adapters.research.fetchBrand(domain, signal),
-        adapters.research.scrapePage(`https://${domain}`, signal),
-        adapters.research.fetchMood(domain, signal),
-      ]);
+      const [brandResult, pageResult, styleguideResult, productsResult] =
+        await Promise.allSettled([
+          adapters.research.fetchBrand(domain, signal),
+          adapters.research.scrapePage(`https://${domain}`, signal),
+          adapters.research.fetchStyleguide(domain, signal),
+          adapters.research.fetchProducts(domain, signal),
+        ]);
 
       if (signal?.aborted) return { ok: false, error: { code: "aborted" } };
 
@@ -152,14 +165,26 @@ export function createAdRunPlanner(adapters: AdRunPlannerAdapters): AdRunPlanner
           error: { code: "brand-unavailable", cause: brandResult.reason },
         };
       }
+      if (productsResult.status === "rejected") {
+        return {
+          ok: false,
+          error: { code: "products-unavailable", cause: productsResult.reason },
+        };
+      }
 
       const brief = buildBrief(
         domain,
         brandResult.value,
         pageResult.status === "fulfilled" ? pageResult.value : "",
-        moodResult.status === "fulfilled" ? moodResult.value : DEFAULT_MOOD,
+        styleguideResult.status === "fulfilled"
+          ? styleguideResult.value
+          : { mood: DEFAULT_MOOD, colors: [], fontFamily: null },
       );
-      const concepts = await adapters.concepts.planConcepts(brief, signal);
+      const concepts = await adapters.concepts.planConcepts(
+        brief,
+        productsResult.value,
+        signal,
+      );
       if (signal?.aborted) return { ok: false, error: { code: "aborted" } };
 
       return {
@@ -178,14 +203,16 @@ const productionPlanner = createAdRunPlanner({
     isReady: hasContextConfiguration,
     fetchBrand,
     scrapePage,
-    fetchMood,
+    fetchStyleguide,
+    fetchProducts,
   },
   concepts: {
     isReady: hasGatewayConfiguration,
-    planConcepts: (brief, signal) =>
+    planConcepts: (brief, products, signal) =>
       pickConceptsAndCraftCopy(
         gatewayTextModel("openai/gpt-5.4-mini"),
         brief,
+        products,
         signal,
       ),
   },

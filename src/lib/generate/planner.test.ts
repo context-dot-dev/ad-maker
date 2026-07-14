@@ -1,18 +1,69 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PlannedConcept, Six } from "@/lib/ad-run";
-import type { BrandProfile } from "@/lib/context";
+import type { PlannedConcept, Product } from "@/lib/ad-run";
+import type { BrandProfile, StyleguideProfile } from "@/lib/context";
 import {
   createAdRunPlanner,
   type AdRunPlannerAdapters,
 } from "./planner";
 
-const CONCEPTS: Six<PlannedConcept> = [
-  { key: "product_hero", model: "openai/gpt-image-1", headline: "Move Faster", subheadline: "Payments built for internet businesses" },
-  { key: "isometric", model: "openai/gpt-image-2", headline: "Build Boldly", subheadline: "A financial platform for ambitious teams" },
-  { key: "typographic", model: "xai/grok-imagine-image", headline: "Own Tomorrow", subheadline: "Tools that make online commerce simple" },
-  { key: "macro_material", model: "google/imagen-4.0-generate-001", headline: "Scale Smoothly", subheadline: "Reliable infrastructure for every payment" },
-  { key: "gradient_field", model: "bytedance/seedream-4.5", headline: "Grow Globally", subheadline: "Reach customers around the world" },
-  { key: "editorial_spread", model: "recraft/recraft-v4.1", headline: "Start Now", subheadline: "Everything your business needs to grow" },
+const PRODUCTS: Product[] = [
+  {
+    name: "Payment Links",
+    description: "Create a payment page and share its link with customers.",
+  },
+  {
+    name: "Stripe Billing",
+    description: "Manage subscriptions, invoices, and recurring revenue.",
+  },
+  {
+    name: "Stripe Checkout",
+    description: "Use a prebuilt payment form for online purchases.",
+  },
+];
+
+const CONCEPTS: readonly PlannedConcept[] = [
+  {
+    key: "product_hero",
+    model: "openai/gpt-image-1",
+    subject: { kind: "company" },
+    headline: "Move Faster",
+    subheadline: "Payments built for internet businesses",
+  },
+  {
+    key: "isometric",
+    model: "openai/gpt-image-2",
+    subject: { kind: "company" },
+    headline: "Build Boldly",
+    subheadline: "A financial platform for ambitious teams",
+  },
+  {
+    key: "typographic",
+    model: "xai/grok-imagine-image",
+    subject: { kind: "company" },
+    headline: "Own Tomorrow",
+    subheadline: "Tools that make online commerce simple",
+  },
+  {
+    key: "macro_material",
+    model: "google/imagen-4.0-generate-001",
+    subject: { kind: "product", ...PRODUCTS[0] },
+    headline: "Share. Sell. Done.",
+    subheadline: "Launch a payment page from one simple link",
+  },
+  {
+    key: "gradient_field",
+    model: "bytedance/seedream-4.5",
+    subject: { kind: "product", ...PRODUCTS[1] },
+    headline: "Billing That Grows",
+    subheadline: "Subscriptions and invoices built to scale",
+  },
+  {
+    key: "editorial_spread",
+    model: "recraft/recraft-v4.1",
+    subject: { kind: "product", ...PRODUCTS[2] },
+    headline: "Checkout, Simplified",
+    subheadline: "A prebuilt payment form customers recognize",
+  },
 ];
 
 const BRAND: BrandProfile = {
@@ -22,10 +73,15 @@ const BRAND: BrandProfile = {
   slogan: "Grow your revenue",
   industry: "Technology · Payments",
   logoUrl: "https://cdn.stripe.com/logo.png",
+};
+
+const STYLEGUIDE: StyleguideProfile = {
+  mood: "bold, precise, optimistic",
   colors: [
     { hex: "#635bff", name: "Blurple" },
     { hex: "#0a2540", name: "Navy" },
   ],
+  fontFamily: "Inter",
 };
 
 type FlatTestAdapters = {
@@ -33,7 +89,8 @@ type FlatTestAdapters = {
   hasGenerationConfiguration: () => boolean;
   fetchBrand: AdRunPlannerAdapters["research"]["fetchBrand"];
   scrapePage: AdRunPlannerAdapters["research"]["scrapePage"];
-  fetchMood: AdRunPlannerAdapters["research"]["fetchMood"];
+  fetchStyleguide: AdRunPlannerAdapters["research"]["fetchStyleguide"];
+  fetchProducts: AdRunPlannerAdapters["research"]["fetchProducts"];
   planConcepts: AdRunPlannerAdapters["concepts"]["planConcepts"];
 };
 
@@ -45,7 +102,8 @@ function adapters(overrides: Partial<FlatTestAdapters> = {}) {
     scrapePage: vi.fn(async () =>
       "Stripe helps businesses accept online payments around the world.",
     ),
-    fetchMood: vi.fn(async () => "bold, precise, optimistic"),
+    fetchStyleguide: vi.fn(async () => STYLEGUIDE),
+    fetchProducts: vi.fn(async () => PRODUCTS),
     planConcepts: vi.fn(async () => CONCEPTS),
     ...overrides,
   };
@@ -54,7 +112,8 @@ function adapters(overrides: Partial<FlatTestAdapters> = {}) {
       isReady: flat.hasContextConfiguration,
       fetchBrand: flat.fetchBrand,
       scrapePage: flat.scrapePage,
-      fetchMood: flat.fetchMood,
+      fetchStyleguide: flat.fetchStyleguide,
+      fetchProducts: flat.fetchProducts,
     },
     concepts: {
       isReady: flat.hasGenerationConfiguration,
@@ -78,6 +137,7 @@ describe("createAdRunPlanner", () => {
       brandName: "Stripe",
       industry: "Technology · Payments",
       mood: "bold, precise, optimistic",
+      fontFamily: "Inter",
       colorA: "rich indigo",
       colorB: "deep navy",
     });
@@ -85,8 +145,21 @@ describe("createAdRunPlanner", () => {
     expect(result.value.concepts).toEqual(CONCEPTS);
     expect(deps.fetchBrand).toHaveBeenCalledWith("stripe.com", undefined);
     expect(deps.scrapePage).toHaveBeenCalledWith("https://stripe.com", undefined);
-    expect(deps.fetchMood).toHaveBeenCalledWith("stripe.com", undefined);
-    expect(deps.planConcepts).toHaveBeenCalledWith(result.value.brief, undefined);
+    expect(deps.fetchStyleguide).toHaveBeenCalledWith("stripe.com", undefined);
+    expect(deps.fetchProducts).toHaveBeenCalledWith("stripe.com", undefined);
+    expect(result.value.concepts.slice(0, 3).map(({ subject }) => subject)).toEqual([
+      { kind: "company" },
+      { kind: "company" },
+      { kind: "company" },
+    ]);
+    expect(result.value.concepts.slice(3).map(({ subject }) => subject)).toEqual(
+      PRODUCTS.map((product) => ({ kind: "product", ...product })),
+    );
+    expect(deps.planConcepts).toHaveBeenCalledWith(
+      result.value.brief,
+      PRODUCTS,
+      undefined,
+    );
   });
 
   it("bounds the flat Brief before passing it to concept planning", async () => {
@@ -97,12 +170,15 @@ describe("createAdRunPlanner", () => {
         description: ` ${"d".repeat(2200)}`,
         industry: ` ${"i".repeat(150)}`,
         logoUrl: `https://example.com/${"x".repeat(2100)}`,
+      })),
+      fetchStyleguide: vi.fn(async () => ({
+        mood: ` ${"m".repeat(200)}`,
         colors: Array.from({ length: 10 }, (_, index) => ({
           hex: index % 2 ? "#635bff" : "#0a2540",
           name: "n".repeat(100),
         })),
+        fontFamily: "f".repeat(101),
       })),
-      fetchMood: vi.fn(async () => ` ${"m".repeat(200)}`),
     });
 
     const result = await createAdRunPlanner(deps)("stripe.com");
@@ -114,6 +190,7 @@ describe("createAdRunPlanner", () => {
     expect(result.value.brief.industry).toHaveLength(120);
     expect(result.value.brief.mood).toHaveLength(160);
     expect(result.value.brief.logoUrl).toBeNull();
+    expect(result.value.brief.fontFamily).toBeNull();
     expect(result.value.brief.colors).toHaveLength(8);
     expect(result.value.brief.colors[0].name).toHaveLength(80);
   });
@@ -133,10 +210,10 @@ describe("createAdRunPlanner", () => {
     expect(deps.planConcepts).toHaveBeenCalledOnce();
   });
 
-  it("uses the default mood when only mood enrichment fails", async () => {
+  it("uses palette and typography defaults when styleguide enrichment fails", async () => {
     const deps = adapters({
-      fetchMood: vi.fn(async () => {
-        throw new Error("mood unavailable");
+      fetchStyleguide: vi.fn(async () => {
+        throw new Error("styleguide unavailable");
       }),
     });
 
@@ -145,11 +222,20 @@ describe("createAdRunPlanner", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.brief.mood).toBe("modern, confident, premium");
+    expect(result.value.brief.colors).toEqual([]);
+    expect(result.value.brief.fontFamily).toBeNull();
+    expect(result.value.brief.colorA).toBe("vivid violet");
+    expect(result.value.brief.colorB).toBe("deep navy");
   });
 
   it("uses the default mood when enrichment returns an empty value", async () => {
     const result = await createAdRunPlanner(
-      adapters({ fetchMood: vi.fn(async () => "   ") }),
+      adapters({
+        fetchStyleguide: vi.fn(async () => ({
+          ...STYLEGUIDE,
+          mood: "   ",
+        })),
+      }),
     )("stripe.com");
 
     expect(result.ok).toBe(true);
@@ -192,6 +278,23 @@ describe("createAdRunPlanner", () => {
     expect(deps.planConcepts).not.toHaveBeenCalled();
   });
 
+  it("returns products-unavailable when Product extraction fails", async () => {
+    const failure = new Error("products unavailable");
+    const deps = adapters({
+      fetchProducts: vi.fn(async () => {
+        throw failure;
+      }),
+    });
+
+    const result = await createAdRunPlanner(deps)("stripe.com");
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "products-unavailable", cause: failure },
+    });
+    expect(deps.planConcepts).not.toHaveBeenCalled();
+  });
+
   it("returns invalid-domain without checking readiness or doing I/O", async () => {
     const deps = adapters();
     const result = await createAdRunPlanner(deps)("localhost");
@@ -200,6 +303,7 @@ describe("createAdRunPlanner", () => {
     expect(deps.hasContextConfiguration).not.toHaveBeenCalled();
     expect(deps.hasGenerationConfiguration).not.toHaveBeenCalled();
     expect(deps.fetchBrand).not.toHaveBeenCalled();
+    expect(deps.fetchProducts).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -221,7 +325,8 @@ describe("createAdRunPlanner", () => {
       expect(deps.hasGenerationConfiguration).toHaveBeenCalledOnce();
       expect(deps.fetchBrand).not.toHaveBeenCalled();
       expect(deps.scrapePage).not.toHaveBeenCalled();
-      expect(deps.fetchMood).not.toHaveBeenCalled();
+      expect(deps.fetchStyleguide).not.toHaveBeenCalled();
+      expect(deps.fetchProducts).not.toHaveBeenCalled();
       expect(deps.planConcepts).not.toHaveBeenCalled();
     },
   );
@@ -229,16 +334,29 @@ describe("createAdRunPlanner", () => {
   it("propagates cancellation and stops before concept planning", async () => {
     const controller = new AbortController();
     const deps = adapters({
-      fetchBrand: vi.fn(async (_domain, signal) => {
+      fetchProducts: vi.fn(async (_domain, signal) => {
         expect(signal).toBe(controller.signal);
         controller.abort();
-        return BRAND;
+        return PRODUCTS;
       }),
     });
 
     const result = await createAdRunPlanner(deps)("stripe.com", controller.signal);
 
     expect(result).toEqual({ ok: false, error: { code: "aborted" } });
+    expect(deps.fetchBrand).toHaveBeenCalledWith("stripe.com", controller.signal);
+    expect(deps.scrapePage).toHaveBeenCalledWith(
+      "https://stripe.com",
+      controller.signal,
+    );
+    expect(deps.fetchStyleguide).toHaveBeenCalledWith(
+      "stripe.com",
+      controller.signal,
+    );
+    expect(deps.fetchProducts).toHaveBeenCalledWith(
+      "stripe.com",
+      controller.signal,
+    );
     expect(deps.planConcepts).not.toHaveBeenCalled();
   });
 
@@ -258,7 +376,7 @@ describe("createAdRunPlanner", () => {
     const duplicate = CONCEPTS.map((concept) => ({ ...concept }));
     duplicate[1] = { ...duplicate[0], model: duplicate[1].model };
     const deps = adapters({
-      planConcepts: vi.fn(async () => duplicate as unknown as Six<PlannedConcept>),
+      planConcepts: vi.fn(async () => duplicate),
     });
 
     const result = await createAdRunPlanner(deps)("stripe.com");

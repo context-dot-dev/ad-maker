@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { ConceptSubject } from "@/lib/ad-run";
 import type { CreativeDirectionKey } from "./directions";
 
 /** Server-only prompt implementations for the cross-runtime direction catalog. */
@@ -12,9 +13,13 @@ export type PromptInput = {
   industry: string;
   /** Visual mood pulled from the site's styleguide, e.g. "modern, confident, premium". */
   mood: string;
+  /** Heading-first Google Font family verified against the styleguide's font links. */
+  fontFamily: string | null;
   /** Brand colors as plain-English phrases (never hex — models print hex codes into the art). */
   colorA: string;
   colorB: string;
+  /** The exact company or Product this individual ad promotes. */
+  subject: ConceptSubject;
   headline: string;
   subheadline: string;
 };
@@ -30,7 +35,9 @@ function typography(p: PromptInput, opts?: { includeUrl?: boolean }): string {
     `   "${p.brandName}" — set small (the brand name)`,
     opts?.includeUrl ? `   "${p.domain}" — set small` : "",
     `• Spelling must be 100% correct, letter for letter. Do NOT invent, add, translate, repeat, or drop any words.`,
-    `• Use ONE clean, modern geometric sans-serif typeface (Inter / Geist / Helvetica style) for everything. Consistent, even letterforms.`,
+    p.fontFamily
+      ? `• Use ${p.fontFamily}, the brand's Google Font, for every text element. Preserve its authentic letterforms and use it consistently.`
+      : `• Use ONE clean, modern geometric sans-serif typeface (Inter / Geist / Helvetica style) for everything. Consistent, even letterforms.`,
     `• Tight professional kerning; comfortable line-height; no letter overlaps, no squished or stretched glyphs, no warping, no faux-3D.`,
     `• Strong contrast: place text over the calmest part of the composition so every character is perfectly legible.`,
     `• Clear hierarchy and generous breathing room. Never hyphenate or break a word across lines.`,
@@ -52,6 +59,9 @@ const brandLine = (p: PromptInput) =>
   [
     `The brand: ${p.brandName} (${p.domain})${p.industry ? `, ${p.industry}` : ""}.`,
     p.summary ? `What they sell: ${p.summary}` : "",
+    p.subject.kind === "product"
+      ? `CAMPAIGN FOCUS: the specific ${p.brandName} product "${p.subject.name}". Product facts: ${p.subject.description}. Make the central visual unmistakably about this product, not a generic company-level metaphor or a different offering.`
+      : `CAMPAIGN FOCUS: ${p.brandName} as a company and its overall value, not any one specific product.`,
     `Brand visual mood: ${p.mood}.`,
   ]
     .filter(Boolean)

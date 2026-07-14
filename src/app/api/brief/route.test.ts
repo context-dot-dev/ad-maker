@@ -20,21 +20,33 @@ const plan: AdRunPlan = {
     industry: "Technology · Payments",
     summary: "Stripe provides programmable financial services.",
     mood: "modern, confident, premium",
+    fontFamily: "Inter",
     colorA: "rich indigo",
     colorB: "deep navy",
     logoUrl: null,
     colors: [{ hex: "#635bff", name: "Purple" }],
   },
-  concepts: [0, 1, 2, 3, 4, 5].map((index) => ({
+  concepts: [0, 1, 2, 3].map((index) => ({
     key: CREATIVE_DIRECTIONS[index].key,
     model: IMAGE_MODELS[index].id,
+    subject:
+      index < 3
+        ? { kind: "company" as const }
+        : {
+            kind: "product" as const,
+            name: "Payments",
+            description: "Accept payments online and in person.",
+          },
     headline: `Concept ${index + 1}`,
     subheadline: "A concise supporting line",
-  })) as unknown as AdRunPlan["concepts"],
+  })),
 };
 
-const request = (domain = "stripe.com") =>
-  new Request(`https://branda.test/api/brief?domain=${encodeURIComponent(domain)}`);
+const request = (domain = "stripe.com", version: string | null = "3") => {
+  const params = new URLSearchParams({ domain });
+  if (version !== null) params.set("v", version);
+  return new Request(`https://branda.test/api/brief?${params.toString()}`);
+};
 
 describe("GET /api/brief", () => {
   beforeEach(() => {
@@ -61,19 +73,27 @@ describe("GET /api/brief", () => {
     );
   });
 
-  it("redirects equivalent domains to one canonical cache key before planning", async () => {
-    const response = await GET(request("HTTPS://WWW.Stripe.com/pricing"));
+  it.each([
+    ["an unversioned request", "stripe.com", null],
+    ["an old format version", "stripe.com", "2"],
+    ["an equivalent domain", "HTTPS://WWW.Stripe.com/pricing", "3"],
+  ] as const)(
+    "redirects %s to the versioned canonical cache key before planning",
+    async (_label, domain, version) => {
+      const response = await GET(request(domain, version));
 
-    expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe(
-      "https://branda.test/api/brief?domain=stripe.com",
-    );
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(mocks.planAdRun).not.toHaveBeenCalled();
-  });
+      expect(response.status).toBe(308);
+      expect(response.headers.get("location")).toBe(
+        "https://branda.test/api/brief?domain=stripe.com&v=3",
+      );
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(mocks.planAdRun).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     "/api/brief?domain=stripe.com&domain=linear.app",
+    "/api/brief?domain=stripe.com&v=3&v=3",
     "/api/brief?domain=stripe.com&extra=true",
   ])("rejects ambiguous query %s", async (path) => {
     const response = await GET(new Request(new URL(path, "https://branda.test")));
@@ -89,10 +109,14 @@ describe("GET /api/brief", () => {
     ["aborted", 499],
     ["domain-unreachable", 502],
     ["brand-unavailable", 502],
+    ["products-unavailable", 502],
     ["internal", 500],
   ] as const)("maps %s to a no-store %s", async (code, status) => {
     const error =
-      code === "internal" || code === "domain-unreachable" || code === "brand-unavailable"
+      code === "internal" ||
+      code === "domain-unreachable" ||
+      code === "brand-unavailable" ||
+      code === "products-unavailable"
         ? { code, cause: new Error("private deployment detail") }
         : { code };
     mocks.planAdRun.mockResolvedValue({ ok: false, error });

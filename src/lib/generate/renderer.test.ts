@@ -19,6 +19,7 @@ const query = (overrides: Partial<RenderedAdQuery> = {}): RenderedAdQuery => ({
   domain: "stripe.com",
   concept: "typographic",
   model: "openai/gpt-image-1",
+  subject: { kind: "company" },
   headline: "Move money",
   subheadline: "Financial infrastructure for every business",
   brandName: "Stripe",
@@ -27,6 +28,7 @@ const query = (overrides: Partial<RenderedAdQuery> = {}): RenderedAdQuery => ({
   summary: "Stripe provides programmable financial services.",
   industry: "Technology · Payments",
   mood: "modern, confident, premium",
+  fontFamily: "Inter",
   logoUrl: "https://cdn.example/stripe.png",
   canonicalHref: "/api/ad?canonical=true",
   ...overrides,
@@ -77,15 +79,57 @@ describe("Ad Renderer", () => {
       "The attached image is Stripe's REAL logo mark.",
     );
 
-    const incapable = dependencies();
-    await createAdRenderer(incapable).render(
-      query({ model: "recraft/recraft-v4.1" }),
+    for (const model of [
+      "bytedance/seedream-4.5",
+      "recraft/recraft-v4.1",
+    ] as const) {
+      const incapable = dependencies();
+      await createAdRenderer(incapable).render(query({ model }));
+      expect(incapable.loadRaster).not.toHaveBeenCalled();
+      expect(vi.mocked(incapable.generateImage).mock.calls[0][0].logo).toBeNull();
+      expect(vi.mocked(incapable.generateImage).mock.calls[0][0].prompt).not.toContain(
+        "REAL logo mark",
+      );
+    }
+  });
+
+  it("makes the selected Product the explicit campaign focus", async () => {
+    const deps = dependencies({ loadRaster: vi.fn(async () => null) });
+
+    await createAdRenderer(deps).render(
+      query({
+        subject: {
+          kind: "product",
+          name: "Stripe Billing",
+          description: "Subscription billing and recurring revenue tools.",
+        },
+      }),
     );
-    expect(incapable.loadRaster).not.toHaveBeenCalled();
-    expect(vi.mocked(incapable.generateImage).mock.calls[0][0].logo).toBeNull();
-    expect(vi.mocked(incapable.generateImage).mock.calls[0][0].prompt).not.toContain(
-      "REAL logo mark",
+
+    const prompt = vi.mocked(deps.generateImage).mock.calls[0][0].prompt;
+    expect(prompt).toContain('specific Stripe product "Stripe Billing"');
+    expect(prompt).toContain(
+      "Subscription billing and recurring revenue tools.",
     );
+    expect(prompt).toContain("not a generic company-level metaphor");
+  });
+
+  it("uses the verified styleguide Google Font and preserves the generic fallback", async () => {
+    const branded = dependencies({ loadRaster: vi.fn(async () => null) });
+    await createAdRenderer(branded).render(query({ fontFamily: "DM Sans" }));
+
+    const brandedPrompt = vi.mocked(branded.generateImage).mock.calls[0][0].prompt;
+    expect(brandedPrompt).toContain(
+      "Use DM Sans, the brand's Google Font, for every text element.",
+    );
+    expect(brandedPrompt).not.toContain("Inter / Geist / Helvetica style");
+
+    const fallback = dependencies({ loadRaster: vi.fn(async () => null) });
+    await createAdRenderer(fallback).render(query({ fontFamily: null }));
+
+    const fallbackPrompt = vi.mocked(fallback.generateImage).mock.calls[0][0].prompt;
+    expect(fallbackPrompt).toContain("Inter / Geist / Helvetica style");
+    expect(fallbackPrompt).not.toContain("the brand's Google Font");
   });
 
   it("softly falls back to text-only when raster loading fails", async () => {

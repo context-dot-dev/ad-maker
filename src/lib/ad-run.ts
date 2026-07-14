@@ -3,10 +3,13 @@ import {
   type BrandColor,
 } from "@/lib/brand-color";
 import {
+  AD_COMPANY_CONCEPT_COUNT,
   AD_PRIMARY_MODEL_COUNT,
+  AD_PRODUCT_CONCEPT_MAX,
+  AD_PRODUCT_CONCEPT_MIN,
   AD_RUN_LIMITS,
-  AD_RUN_SIZE,
-  type Six,
+  AD_RUN_MAX_SIZE,
+  AD_RUN_MIN_SIZE,
 } from "@/lib/ad-run-policy";
 import {
   CREATIVE_DIRECTION_KEYS,
@@ -17,14 +20,18 @@ import {
   imageModelById,
   type ImageModelId,
 } from "@/lib/generate/models";
+import { normalizeFontFamily } from "@/lib/font-family";
 import { normalizeDomain } from "@/lib/net";
 import { parsePublicHttpUrl } from "@/lib/public-url";
 
 export {
+  AD_COMPANY_CONCEPT_COUNT,
   AD_PRIMARY_MODEL_COUNT,
+  AD_PRODUCT_CONCEPT_MAX,
+  AD_PRODUCT_CONCEPT_MIN,
   AD_RUN_LIMITS,
-  AD_RUN_SIZE,
-  type Six,
+  AD_RUN_MAX_SIZE,
+  AD_RUN_MIN_SIZE,
 } from "@/lib/ad-run-policy";
 
 export type { BrandColor } from "@/lib/brand-color";
@@ -36,28 +43,40 @@ export type AdBrief = {
   industry: string;
   summary: string;
   mood: string;
+  fontFamily: string | null;
   colorA: string;
   colorB: string;
   logoUrl: string | null;
   colors: BrandColor[];
 };
 
+export type Product = {
+  name: string;
+  description: string;
+};
+
+export type ConceptSubject =
+  | { kind: "company" }
+  | ({ kind: "product" } & Product);
+
 export type PlannedConcept = {
   key: CreativeDirectionKey;
   model: ImageModelId;
+  subject: ConceptSubject;
   headline: string;
   subheadline: string;
 };
 
 export type AdRunPlan = {
   brief: AdBrief;
-  concepts: Six<PlannedConcept>;
+  concepts: readonly PlannedConcept[];
 };
 
 export type RenderedAdQuery = {
   domain: string;
   concept: CreativeDirectionKey;
   model: ImageModelId;
+  subject: ConceptSubject;
   headline: string;
   subheadline: string;
   brandName: string;
@@ -66,6 +85,7 @@ export type RenderedAdQuery = {
   summary: string;
   industry: string;
   mood: string;
+  fontFamily: string | null;
   logoUrl: string | null;
   canonicalHref: string;
 };
@@ -74,6 +94,7 @@ type RecordValue = Record<string, unknown>;
 
 const DIRECTIONS = new Set<string>(CREATIVE_DIRECTION_KEYS);
 const MODELS = new Set<string>(IMAGE_MODEL_IDS);
+const BRIEF_FORMAT_VERSION = "3";
 
 function invalid(message: string): never {
   throw new Error(`Invalid Ad Run contract: ${message}`);
@@ -122,6 +143,12 @@ function publicHttpUrl(value: unknown, name: string): string {
   return normalized.href;
 }
 
+function promptFontFamily(value: unknown, name: string): string {
+  const family = normalizeFontFamily(value);
+  if (!family) invalid(`${name} is invalid`);
+  return family;
+}
+
 function decodeColor(value: unknown, index: number): BrandColor {
   const color = record(value, `colors[${index}]`);
   onlyKeys(color, ["hex", "name"], `colors[${index}]`);
@@ -146,6 +173,7 @@ function decodeBrief(value: unknown): AdBrief {
       "industry",
       "summary",
       "mood",
+      "fontFamily",
       "colorA",
       "colorB",
       "logoUrl",
@@ -175,6 +203,10 @@ function decodeBrief(value: unknown): AdBrief {
       max: AD_RUN_LIMITS.mood,
       trim: true,
     }),
+    fontFamily:
+      brief.fontFamily === null
+        ? null
+        : promptFontFamily(brief.fontFamily, "brief.fontFamily"),
     colorA: text(brief.colorA, "brief.colorA", {
       min: 1,
       max: AD_RUN_LIMITS.promptColor,
@@ -208,9 +240,39 @@ function imageModel(value: unknown): ImageModelId {
   return model as ImageModelId;
 }
 
+function decodeSubject(value: unknown, name = "concept.subject"): ConceptSubject {
+  const subject = record(value, name);
+  const kind = text(subject.kind, `${name}.kind`, { min: 1, max: 16, trim: true });
+
+  if (kind === "company") {
+    onlyKeys(subject, ["kind"], name);
+    return { kind };
+  }
+  if (kind !== "product") invalid(`${name}.kind is unknown`);
+
+  onlyKeys(subject, ["kind", "name", "description"], name);
+  return {
+    kind,
+    name: text(subject.name, `${name}.name`, {
+      min: 1,
+      max: AD_RUN_LIMITS.productName,
+      trim: true,
+    }),
+    description: text(subject.description, `${name}.description`, {
+      min: 1,
+      max: AD_RUN_LIMITS.productDescription,
+      trim: true,
+    }),
+  };
+}
+
 function decodeConcept(value: unknown): PlannedConcept {
   const concept = record(value, "concept");
-  onlyKeys(concept, ["key", "model", "headline", "subheadline"], "concept");
+  onlyKeys(
+    concept,
+    ["key", "model", "subject", "headline", "subheadline"],
+    "concept",
+  );
   const headline = text(concept.headline, "concept.headline", {
     min: 1,
     max: AD_RUN_LIMITS.headline,
@@ -230,6 +292,7 @@ function decodeConcept(value: unknown): PlannedConcept {
   return {
     key: direction(concept.key),
     model: imageModel(concept.model),
+    subject: decodeSubject(concept.subject),
     headline,
     subheadline,
   };
@@ -238,16 +301,48 @@ function decodeConcept(value: unknown): PlannedConcept {
 export function decodeAdRunPlan(value: unknown): AdRunPlan {
   const plan = record(value, "Ad Run");
   onlyKeys(plan, ["brief", "concepts"], "Ad Run");
-  if (!Array.isArray(plan.concepts) || plan.concepts.length !== AD_RUN_SIZE) {
-    invalid(`an Ad Run must contain exactly ${AD_RUN_SIZE} Planned Concepts`);
+  if (
+    !Array.isArray(plan.concepts) ||
+    plan.concepts.length < AD_RUN_MIN_SIZE ||
+    plan.concepts.length > AD_RUN_MAX_SIZE
+  ) {
+    invalid(
+      `an Ad Run must contain between ${AD_RUN_MIN_SIZE} and ${AD_RUN_MAX_SIZE} Planned Concepts`,
+    );
   }
 
   const concepts = plan.concepts.map(decodeConcept);
-  if (new Set(concepts.map(({ key }) => key)).size !== AD_RUN_SIZE) {
+  if (new Set(concepts.map(({ key }) => key)).size !== concepts.length) {
     invalid("an Ad Run must contain distinct Creative Directions");
   }
-  if (new Set(concepts.map(({ model }) => model)).size !== AD_RUN_SIZE) {
+  if (new Set(concepts.map(({ model }) => model)).size !== concepts.length) {
     invalid("an Ad Run must contain distinct Image Models");
+  }
+  if (
+    !concepts
+      .slice(0, AD_COMPANY_CONCEPT_COUNT)
+      .every(({ subject }) => subject.kind === "company") ||
+    !concepts
+      .slice(AD_COMPANY_CONCEPT_COUNT)
+      .every(({ subject }) => subject.kind === "product")
+  ) {
+    invalid("an Ad Run must place three Company concepts before its Product concepts");
+  }
+  const productSubjects = concepts
+    .slice(AD_COMPANY_CONCEPT_COUNT)
+    .map(({ subject }) => subject)
+    .filter((subject): subject is Extract<ConceptSubject, { kind: "product" }> =>
+      subject.kind === "product"
+    );
+  if (
+    productSubjects.length < AD_PRODUCT_CONCEPT_MIN ||
+    productSubjects.length > AD_PRODUCT_CONCEPT_MAX
+  ) {
+    invalid("an Ad Run must contain between one and three Product concepts");
+  }
+  const productNames = productSubjects.map(({ name }) => name.toLocaleLowerCase());
+  if (new Set(productNames).size !== productNames.length) {
+    invalid("an Ad Run must contain distinct Products");
   }
   concepts.forEach(({ model }, index) => {
     const expectedTier = index < AD_PRIMARY_MODEL_COUNT ? "primary" : "secondary";
@@ -258,7 +353,7 @@ export function decodeAdRunPlan(value: unknown): AdRunPlan {
 
   return {
     brief: decodeBrief(plan.brief),
-    concepts: concepts as unknown as Six<PlannedConcept>,
+    concepts,
   };
 }
 
@@ -266,6 +361,9 @@ const RENDERED_AD_QUERY_KEYS = [
   "domain",
   "concept",
   "model",
+  "subject",
+  "product",
+  "productDescription",
   "headline",
   "sub",
   "name",
@@ -274,6 +372,7 @@ const RENDERED_AD_QUERY_KEYS = [
   "summary",
   "industry",
   "mood",
+  "font",
   "logo",
 ] as const;
 
@@ -282,15 +381,21 @@ function encodeRenderedAdQuery(query: Omit<RenderedAdQuery, "canonicalHref">): s
     domain: query.domain,
     concept: query.concept,
     model: query.model,
-    headline: query.headline,
-    sub: query.subheadline,
-    name: query.brandName,
-    colorA: query.colorA,
-    colorB: query.colorB,
-    summary: query.summary,
-    industry: query.industry,
-    mood: query.mood,
+    subject: query.subject.kind,
   });
+  if (query.subject.kind === "product") {
+    params.set("product", query.subject.name);
+    params.set("productDescription", query.subject.description);
+  }
+  params.set("headline", query.headline);
+  params.set("sub", query.subheadline);
+  params.set("name", query.brandName);
+  params.set("colorA", query.colorA);
+  params.set("colorB", query.colorB);
+  params.set("summary", query.summary);
+  params.set("industry", query.industry);
+  params.set("mood", query.mood);
+  if (query.fontFamily) params.set("font", query.fontFamily);
   if (query.logoUrl) params.set("logo", query.logoUrl);
   return `/api/ad?${params.toString()}`;
 }
@@ -299,7 +404,10 @@ function encodeRenderedAdQuery(query: Omit<RenderedAdQuery, "canonicalHref">): s
 export function briefHref(rawDomain: string): string {
   const domain = normalizeDomain(rawDomain);
   if (!domain) invalid("Brief domain is invalid");
-  return `/api/brief?${new URLSearchParams({ domain }).toString()}`;
+  return `/api/brief?${new URLSearchParams({
+    domain,
+    v: BRIEF_FORMAT_VERSION,
+  }).toString()}`;
 }
 
 /** Canonical GET URL for one CDN-cached Rendered Ad. */
@@ -310,6 +418,7 @@ export function renderedAdHref(brief: AdBrief, concept: PlannedConcept): string 
     domain: validBrief.domain,
     concept: validConcept.key,
     model: validConcept.model,
+    subject: validConcept.subject,
     headline: validConcept.headline,
     subheadline: validConcept.subheadline,
     brandName: validBrief.brandName,
@@ -318,6 +427,7 @@ export function renderedAdHref(brief: AdBrief, concept: PlannedConcept): string 
     summary: validBrief.summary,
     industry: validBrief.industry,
     mood: validBrief.mood,
+    fontFamily: validBrief.fontFamily,
     logoUrl: validBrief.logoUrl,
   });
 }
@@ -337,6 +447,25 @@ function requiredParameter(params: URLSearchParams, name: string): string {
   return values[0];
 }
 
+function decodeQuerySubject(params: URLSearchParams): ConceptSubject {
+  const kind = requiredParameter(params, "subject");
+  if (kind === "company") {
+    if (params.has("product") || params.has("productDescription")) {
+      invalid("Company subjects cannot contain Product parameters");
+    }
+    return decodeSubject({ kind }, "subject");
+  }
+  if (kind !== "product") invalid("subject.kind is unknown");
+  return decodeSubject(
+    {
+      kind,
+      name: requiredParameter(params, "product"),
+      description: requiredParameter(params, "productDescription"),
+    },
+    "subject",
+  );
+}
+
 /** Decode and validate the public query used to render an Ad. */
 export function decodeRenderedAdQuery(input: URL | URLSearchParams | string): RenderedAdQuery {
   const params = searchParamsFrom(input);
@@ -347,20 +476,22 @@ export function decodeRenderedAdQuery(input: URL | URLSearchParams | string): Re
     if (params.getAll(key).length !== 1) invalid(`${key} must appear exactly once`);
   }
 
+  const subject = decodeQuerySubject(params);
+  const copy = decodeConcept({
+    key: requiredParameter(params, "concept"),
+    model: requiredParameter(params, "model"),
+    subject,
+    headline: requiredParameter(params, "headline"),
+    subheadline: requiredParameter(params, "sub"),
+  });
+
   const query = {
     domain: canonicalDomain(requiredParameter(params, "domain")),
-    concept: direction(requiredParameter(params, "concept")),
-    model: imageModel(requiredParameter(params, "model")),
-    headline: decodeConcept({
-      key: requiredParameter(params, "concept"),
-      model: requiredParameter(params, "model"),
-      headline: requiredParameter(params, "headline"),
-      subheadline: requiredParameter(params, "sub"),
-    }).headline,
-    subheadline: text(requiredParameter(params, "sub"), "sub", {
-      max: AD_RUN_LIMITS.subheadline,
-      trim: true,
-    }),
+    concept: copy.key,
+    model: copy.model,
+    subject,
+    headline: copy.headline,
+    subheadline: copy.subheadline,
     brandName: text(requiredParameter(params, "name"), "name", {
       min: 1,
       max: AD_RUN_LIMITS.brandName,
@@ -387,6 +518,9 @@ export function decodeRenderedAdQuery(input: URL | URLSearchParams | string): Re
       max: AD_RUN_LIMITS.mood,
       trim: true,
     }),
+    fontFamily: params.has("font")
+      ? promptFontFamily(requiredParameter(params, "font"), "font")
+      : null,
     logoUrl: params.has("logo") ? publicHttpUrl(requiredParameter(params, "logo"), "logo") : null,
   };
 

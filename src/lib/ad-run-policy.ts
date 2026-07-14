@@ -1,8 +1,10 @@
-/** Fixed product policy shared by the contract, catalogs, planner, and Gallery. */
-export const AD_RUN_SIZE = 6 as const;
+/** Product policy shared by the contract, catalogs, planner, and Gallery. */
+export const AD_COMPANY_CONCEPT_COUNT = 3 as const;
+export const AD_PRODUCT_CONCEPT_MIN = 1 as const;
+export const AD_PRODUCT_CONCEPT_MAX = 3 as const;
+export const AD_RUN_MIN_SIZE = 4 as const;
+export const AD_RUN_MAX_SIZE = 6 as const;
 export const AD_PRIMARY_MODEL_COUNT = 3 as const;
-
-export type Six<T> = readonly [T, T, T, T, T, T];
 
 export const AD_RUN_LIMITS = {
   domain: 253,
@@ -11,6 +13,7 @@ export const AD_RUN_LIMITS = {
   industry: 120,
   summary: 480,
   mood: 160,
+  fontFamily: 100,
   promptColor: 40,
   logoUrl: 2048,
   palette: 8,
@@ -21,4 +24,6 @@ export const AD_RUN_LIMITS = {
   headlineWords: 3,
   subheadline: 120,
   subheadlineWords: 12,
+  productName: 120,
+  productDescription: 500,
 } as const;

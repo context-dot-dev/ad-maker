@@ -2,7 +2,7 @@
 
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AD_RUN_SIZE, type AdRunPlan } from "@/lib/ad-run";
+import type { AdRunPlan, PlannedConcept } from "@/lib/ad-run";
 import { CREATIVE_DIRECTIONS } from "@/lib/generate/directions";
 import { IMAGE_MODELS } from "@/lib/generate/models";
 import { useAdMaker, type AdMakerController } from "./use-ad-maker";
@@ -20,15 +20,44 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
-function planFor(domain = "stripe.com"): AdRunPlan {
-  const concepts = CREATIVE_DIRECTIONS.slice(0, AD_RUN_SIZE).map(
-    (direction, index) => ({
+function planFor(
+  domain = "stripe.com",
+  productCount: 1 | 2 | 3 = 3,
+): AdRunPlan {
+  const products = [
+    {
+      name: "Payments",
+      description: "Programmable payment acceptance for internet businesses.",
+    },
+    {
+      name: "Billing",
+      description: "Subscription and invoicing tools for recurring revenue.",
+    },
+    {
+      name: "Connect",
+      description: "Payments infrastructure for platforms and marketplaces.",
+    },
+  ] as const;
+  const concepts: PlannedConcept[] = CREATIVE_DIRECTIONS.slice(
+    0,
+    3 + productCount,
+  ).map((direction, index) => {
+    const product = products[index - 3];
+    return {
       key: direction.key,
       model: IMAGE_MODELS[index].id,
+      subject:
+        index < 3
+          ? { kind: "company" as const }
+          : {
+              kind: "product" as const,
+              name: product.name,
+              description: product.description,
+            },
       headline: `Concept ${index + 1}`,
       subheadline: "A concise supporting line",
-    }),
-  );
+    };
+  });
 
   return {
     brief: {
@@ -38,19 +67,13 @@ function planFor(domain = "stripe.com"): AdRunPlan {
       industry: "Technology · Payments",
       summary: "Stripe provides programmable financial services.",
       mood: "modern, confident, premium",
+      fontFamily: "Inter",
       colorA: "vivid violet",
       colorB: "deep navy",
       logoUrl: null,
       colors: [{ hex: "#635bff", name: "Purple" }],
     },
-    concepts: [
-      concepts[0],
-      concepts[1],
-      concepts[2],
-      concepts[3],
-      concepts[4],
-      concepts[5],
-    ],
+    concepts,
   };
 }
 
@@ -120,7 +143,9 @@ describe("useAdMaker", () => {
 
     await act(() => start("HTTPS://WWW.Stripe.COM/Pricing"));
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/brief?domain=stripe.com");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/brief?domain=stripe.com&v=3",
+    );
     const generating = atPhase(result.current, "generating");
     expect(generating.submittedDomain).toBe("stripe.com");
     expect(generating.brief.domain).toBe("stripe.com");
@@ -142,18 +167,20 @@ describe("useAdMaker", () => {
   });
 
   it("stays generating when the original requests settle before an in-flight retry", async () => {
+    const plan = planFor();
+    const total = plan.concepts.length;
     const originalRenders = deferred<Response>();
     const retry = deferred<Response>();
     let adRequest = 0;
     fetchMock.mockImplementation((input) => {
       const href = String(input);
       if (href.startsWith("/api/brief")) {
-        return Promise.resolve(jsonResponse(planFor()));
+        return Promise.resolve(jsonResponse(plan));
       }
       adRequest += 1;
       if (adRequest === 1)
         return Promise.resolve(imageResponse("image/png", false));
-      if (adRequest <= AD_RUN_SIZE) return originalRenders.promise;
+      if (adRequest <= total) return originalRenders.promise;
       return retry.promise;
     });
     const { result } = renderHook(() => useAdMaker());
@@ -173,7 +200,7 @@ describe("useAdMaker", () => {
 
     await act(async () => originalRenders.resolve(imageResponse()));
     await waitFor(() =>
-      expect(atPhase(result.current, "generating").doneCount).toBe(5),
+      expect(atPhase(result.current, "generating").doneCount).toBe(total - 1),
     );
     expect(atPhase(result.current, "generating").slots[0].status).toBe(
       "loading",
@@ -218,18 +245,20 @@ describe("useAdMaker", () => {
   });
 
   it("keeps a settled gallery visible while retrying a failed slot", async () => {
+    const plan = planFor();
+    const total = plan.concepts.length;
     const retry = deferred<Response>();
     let adRequest = 0;
     fetchMock.mockImplementation((input) => {
       const href = String(input);
       if (href.startsWith("/api/brief")) {
-        return Promise.resolve(jsonResponse(planFor()));
+        return Promise.resolve(jsonResponse(plan));
       }
       adRequest += 1;
       if (adRequest === 1) {
         return Promise.resolve(imageResponse("image/png", false));
       }
-      if (adRequest <= AD_RUN_SIZE) return Promise.resolve(imageResponse());
+      if (adRequest <= total) return Promise.resolve(imageResponse());
       return retry.promise;
     });
     const { result } = renderHook(() => useAdMaker());
@@ -248,27 +277,43 @@ describe("useAdMaker", () => {
     );
   });
 
-  it("revokes every owned object URL on unmount", async () => {
-    fetchMock.mockImplementation((input) =>
-      String(input).startsWith("/api/brief")
-        ? Promise.resolve(jsonResponse(planFor()))
-        : Promise.resolve(imageResponse()),
-    );
-    const { result, unmount } = renderHook(() => useAdMaker());
-    const start = atPhase(result.current, "idle").start;
+  it.each([1, 3] as const)(
+    "renders and revokes a complete run with %s Product concepts",
+    async (productCount) => {
+      const plan = planFor("stripe.com", productCount);
+      const total = plan.concepts.length;
+      fetchMock.mockImplementation((input) =>
+        String(input).startsWith("/api/brief")
+          ? Promise.resolve(jsonResponse(plan))
+          : Promise.resolve(imageResponse()),
+      );
+      const { result, unmount } = renderHook(() => useAdMaker());
+      const start = atPhase(result.current, "idle").start;
 
-    await act(() => start("stripe.com"));
-    await waitFor(() => expect(result.current.phase).toBe("done"));
-    expect(createObjectURL).toHaveBeenCalledTimes(AD_RUN_SIZE);
+      await act(() => start("stripe.com"));
+      await waitFor(() => expect(result.current.phase).toBe("done"));
+      const completed = atPhase(result.current, "done");
+      expect(completed.slots).toHaveLength(total);
+      expect(completed.doneCount).toBe(total);
+      expect(
+        completed.slots.slice(0, 3).map(({ concept }) => concept.subject),
+      ).toEqual([
+        { kind: "company" },
+        { kind: "company" },
+        { kind: "company" },
+      ]);
+      expect(
+        completed.slots.slice(3).map(({ concept }) => concept.subject.kind),
+      ).toEqual(Array.from({ length: productCount }, () => "product"));
+      expect(fetchMock).toHaveBeenCalledTimes(total + 1);
+      expect(createObjectURL).toHaveBeenCalledTimes(total);
 
-    unmount();
-    expect(new Set(revokeObjectURL.mock.calls.map(([url]) => url))).toEqual(
-      new Set(
-        Array.from(
-          { length: AD_RUN_SIZE },
-          (_, index) => `blob:ad-${index + 1}`,
+      unmount();
+      expect(new Set(revokeObjectURL.mock.calls.map(([url]) => url))).toEqual(
+        new Set(
+          Array.from({ length: total }, (_, index) => `blob:ad-${index + 1}`),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 });

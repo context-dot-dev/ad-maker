@@ -21,22 +21,23 @@
 
 ## Built by the [Context.dev](https://link.context.dev/branda) team 🥠
 
-Branda is a fully open-source ad generator that turns **any website URL** into six polished, on-brand marketing creatives. No login, no setup, no briefs, no settings — the domain is the only input. Branda pulls the brand's real logo, colors, and voice straight from the [Context.dev Brand API](https://link.context.dev/branda), then the page morphs in place into a gallery of six square ads, each rendered by a different image model in a different creative direction.
+Branda is a fully open-source ad generator that turns **any website URL** into four to six polished, on-brand marketing creatives. No login, no setup, no briefs, no settings — the domain is the only input. Branda pulls the brand's real logo and identity from the [Context.dev Brand API](https://link.context.dev/branda), uses its extracted styleguide palette and Google Font when available, fact-grounds one to three distinct products from its site, then morphs the page in place into a gallery: three company ads followed by one ad for each extracted product.
 
 Paste `notion.com` and Branda will:
 
-- 🎨 Pull the brand's logo, palette, industry, and visual mood from [Context.dev](https://link.context.dev/branda)
+- 🎨 Pull the brand's logo and industry plus its styleguide palette and eligible Google Font from [Context.dev](https://link.context.dev/branda)
 - 👀 Read the homepage so the copy speaks in the brand's real voice
-- 🧠 Have an LLM pick 6 of 12 creative directions and write tailored copy for each
-- 🖼️ Render 6 distinct 1:1 ads in parallel — every single ad by a **different image model** (OpenAI, xAI, Google, ByteDance, Recraft)
+- 📦 Extract one to three distinct, fact-grounded products with Context.dev `web.extract` and a JSON Schema generated from Zod
+- 🧠 Have an LLM pick a distinct creative direction and write tailored copy for three company ads plus one ad per extracted product
+- 🖼️ Render 4–6 distinct 1:1 ads in parallel — every ad uses a **different image model** (OpenAI, xAI, Google, ByteDance, Recraft)
 - ⚡ Cache every brief and ad on the Vercel CDN to reduce duplicate generation while entries are fresh
-- 📥 Download each ad (or all six) and share straight to X
+- 📥 Download each ad (or every finished ad) and share straight to X
 
 ---
 
 ## Examples
 
-Real outputs, straight from Branda — one URL in, six ads out:
+Real outputs, straight from Branda — one URL in, 4–6 ads out:
 
 | | | |
 |:---:|:---:|:---:|
@@ -65,19 +66,20 @@ Real outputs, straight from Branda — one URL in, six ads out:
 
 ## What you get
 
-- **Domain → 6 ads, one input** — no formats to pick, no messages to write, no style dropdowns. Paste a domain and the page morphs into a live gallery as each ad lands.
-- **Genuinely on-brand** — logo, colors, industry, and visual mood come from the real brand via [Context.dev](https://link.context.dev/branda), not generic stock.
-- **12 creative directions** — an LLM picks the 6 that fit the brand best (and feel varied), then writes a tailored headline and subheadline for each.
-- **6 image models racing** — one model per ad: `gpt-image-1`, `gpt-image-2`, and `grok-imagine-image` always take the top three slots, with `imagen-4.0`, `seedream-4.5`, and `recraft-v4.1` filling the rest. Every ad streams in the moment its model finishes.
-- **Brand-grounded copy** — headlines are written from the brand's actual homepage content, in its own vocabulary — never invented positioning.
+- **Domain → 4–6 ads, one input** — no formats to pick, no messages to write, no style dropdowns. Paste a domain and the page morphs into a live gallery as each ad lands.
+- **Genuinely on-brand** — logo and industry come from the Brand API; colors and eligible Google Font come from the site's extracted styleguide via [Context.dev](https://link.context.dev/branda), not generic stock.
+- **Company plus products** — every Ad Run starts with exactly three company ads, followed by one to three ads for distinct products extracted and fact-checked against the site with Context.dev.
+- **12 creative directions** — an LLM picks one distinct direction per ad, then writes a tailored headline and subheadline for the company or specific product being advertised.
+- **Up to 6 image models racing** — `gpt-image-1`, `gpt-image-2`, and `grok-imagine-image` take the three company slots; one to three of `imagen-4.0`, `seedream-4.5`, and `recraft-v4.1` render the product slots. Every ad streams in the moment its model finishes.
+- **Fact-grounded copy** — company headlines draw from the real homepage, while product headlines draw from structured extraction — never invented positioning or offerings.
 - **CDN-cached** — fresh briefs and finished ads are reused from the Vercel CDN, reducing duplicate generation work.
-- **All downloadable** — every ad individually, or all six at once. One-tap share to X with the ad copied to your clipboard.
+- **All downloadable** — every ad individually, or every finished ad at once. One-tap share to X with the ad copied to your clipboard.
 
 ---
 
 ## The 12 creative directions
 
-Every generation picks 6 of these:
+Every generation picks 4–6 distinct directions from these:
 
 | Key | Style | Best for |
 | --- | --- | --- |
@@ -94,34 +96,35 @@ Every generation picks 6 of these:
 | `monochrome_crop` | Tight single-hue detail crop | Luxury, watches, minimalist brands |
 | `collage` | Cut-paper layered collage | Agencies, education, media |
 
-All twelve prompt templates share a strict typography spec (the only text allowed is the headline, subheadline, and wordmark) and hard rules (no hex codes, no placeholder text, no people/faces/hands). Brand colors are never passed as hex — each is converted to a phrase like "vivid purple", because image models literally print strings like `#543cfc` onto the art when given raw codes.
+All twelve prompt templates share a strict typography spec (the only text allowed is the headline, subheadline, and wordmark) and hard rules (no hex codes, no placeholder text, no people/faces/hands). Styleguide colors are converted to phrases like "vivid purple", because image models literally print strings like `#543cfc` onto the art when given raw codes. When the styleguide's primary typography references a verified Google Font, its family name is passed into every image prompt; otherwise the prompt uses a neutral sans-serif fallback.
 
 ---
 
 ## How it works
 
 ```
-┌──────────────┐   GET /api/brief?domain=…   ┌──────────────────┐
+┌──────────────┐ GET /api/brief?domain=…&v=3 ┌──────────────────┐
 │ Paste domain │ ──────────────────────────▶ │  Context.dev API │
 └──────────────┘                             └──────────────────┘
-                        │  brand (logo·colors·industry) + homepage md + styleguide mood
+                        │  brand + homepage md + styleguide palette/typography
+                        │  + 1–3 fact-grounded products via web.extract + Zod JSON Schema
                         ▼
-        ┌────────────────────────────────────────────────┐
-        │  one LLM call picks 6 of 12 concepts and       │  gpt-5.4-mini
-        │  writes headline + subheadline per concept;    │
-        │  6 distinct Image Models, primary tier first   │
-        └────────────────────────────────────────────────┘
-                        │  { brief, concepts[6] }   ← cached on Vercel CDN
+        ┌────────────────────────────────────────────────────┐
+        │  one LLM call plans 3 company concepts followed by │  gpt-5.4-mini
+        │  1–3 product concepts, with grounded copy for each; │
+        │  distinct models: 3 primary, then 1–3 secondary     │
+        └────────────────────────────────────────────────────┘
+                        │  { brief, concepts[4..6] }   ← cached on Vercel CDN
                         ▼
-        6 × GET /api/ad?domain=…&concept=…&model=…&headline=…
+        4–6 × GET /api/ad?domain=…&concept=…&model=…&headline=…
                         │  each returns one 1:1 image  ← cached on Vercel CDN
                         ▼
         Ads stream into the gallery · Download · Share on X
 ```
 
-1. **The brief** — `GET /api/brief` makes three Context.dev calls in parallel (Brand API, homepage scrape, styleguide), derives a product summary and two describable brand colors, then one LLM call picks 6 concepts and writes copy. The whole response is cached on the Vercel CDN per domain (`s-maxage=3600`).
-2. **The ads** — the client fires 6 parallel `GET /api/ad` requests, one per concept. Everything the prompt needs travels in the query string, so each finished image is CDN-cached by its full URL — and since the brief is cached too, repeat visitors can reuse fresh ads from the edge (`s-maxage=86400`). If the brand has a raster logo, it's attached as an image input so the model reproduces the real mark. Transient failures retry with backoff; failed slots expose a per-ad Retry button (errors are never cached).
-3. **Ship** — each ad fades in as its model finishes. Download one, download all six, or share to X.
+1. **The brief** — `GET /api/brief` makes four Context.dev calls in parallel: Brand API, homepage scrape, styleguide, and `web.extract`. Product extraction uses a JSON Schema generated from Zod and fact checking so every returned product is grounded in the site. The planner derives two describable colors from the styleguide's accent/background/text palette and carries a typography family only when the styleguide marks it as a Google Font. One LLM call then writes three company concepts followed by one concept for each of the one to three distinct products. The whole response is cached on the Vercel CDN per versioned domain key (`s-maxage=3600`).
+2. **The ads** — the client fires 4–6 parallel `GET /api/ad` requests, one per Planned Concept. Everything the prompt needs — including whether the subject is the company or a specific product — travels in the query string, so each finished image is CDN-cached by its full URL. Since the brief is cached too, repeat visitors can reuse fresh ads from the edge (`s-maxage=86400`). If the brand has a raster logo, it's attached as an image input so the model reproduces the real mark. Transient failures retry with backoff; failed slots expose a per-ad Retry button (errors are never cached).
+3. **Ship** — each ad fades into the dynamically sized gallery as its model finishes. Download one, download every finished ad, or share to X.
 
 ---
 
@@ -149,10 +152,10 @@ cp .env.example .env
 npm run dev      # http://localhost:3000
 ```
 
-Open `http://localhost:3000`, paste a domain, and watch six ads roll in. That's it.
+Open `http://localhost:3000`, paste a domain, and watch 4–6 ads roll in. That's it.
 
 > [!NOTE]
-> A single Vercel AI Gateway key serves everything Branda uses — concept picking, copy, and all six image models — from one credit balance, with no per-provider keys to manage.
+> A single Vercel AI Gateway key serves everything Branda uses — concept picking, copy, and up to six image models — from one credit balance, with no per-provider keys to manage.
 
 ---
 
@@ -162,8 +165,8 @@ All configuration is environment variables (see `.env.example`).
 
 | Variable | Required | Description |
 |---|---|---|
-| `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data, homepage scraping, and the styleguide mood |
-| `AI_GATEWAY_API_KEY` | Yes | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and all six image models |
+| `CONTEXT_DEV_API_KEY` | Yes | [Context.dev](https://link.context.dev/branda) key — powers brand data, homepage scraping, styleguide palette/typography, and fact-grounded Product extraction |
+| `AI_GATEWAY_API_KEY` | Yes | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key — powers concept picking + copy (`gpt-5.4-mini`) and up to six image models |
 
 To swap image models, edit the catalog in `src/lib/generate/models.ts`. Each record owns its placement tier, display name, and raster-logo capability.
 
@@ -189,18 +192,19 @@ The canonical domain language and module relationships live in [CONTEXT.md](./CO
 src/
   app/
     api/
-      brief/route.ts        # domain → brand data + mood + 6 picked concepts w/ copy (CDN-cached)
+      brief/route.ts        # domain → brand + products + 4–6 concepts w/ copy (CDN-cached)
       ad/route.ts           # one concept → one 1:1 ad image (CDN-cached by URL)
     page.tsx                # the single page — hero morphs into the gallery
   components/
-    ad-maker.tsx            # hero, brand bar, progress, 6-slot ad gallery
+    ad-maker.tsx            # hero, brand bar, progress, dynamic 4–6-slot gallery
   hooks/
     use-ad-maker.ts         # legal Gallery stages, parallel rendering, retries, URL ownership
   lib/
-    ad-run-policy.ts        # fixed run size and shared field limits
+    ad-run-policy.ts        # run composition, ordering, and shared field limits
     ad-run.ts               # shared Ad Run contract, invariants, and canonical GET codecs
     brand-color.ts          # canonical Brand color validation
-    context.ts              # Context.dev Brand adapter
+    font-family.ts          # safe styleguide Google Font family validation
+    context.ts              # Context.dev Brand, page, styleguide, and Product adapter
     net.ts                  # canonical domain normalization
     public-raster.ts        # DNS-pinned, size-bounded public logo loading
     public-url.ts           # cross-runtime public URL syntax policy
@@ -211,7 +215,7 @@ src/
       brief.ts              # homepage summary + concept copywriting
       colors.ts             # hex → describable color phrases
       gateway.ts            # internal Vercel AI Gateway adapter
-      planner.ts            # domain → validated Brief + six Planned Concepts
+      planner.ts            # domain → validated Brief + 4–6 Planned Concepts
       renderer.ts           # one Planned Concept → retried Rendered Ad
 public/                     # logo, cover, ad examples
 ```
@@ -221,7 +225,7 @@ public/                     # logo, cover, ad examples
 ## Tech stack
 
 - ▲ **Next.js 15** (App Router) + React 19 + TypeScript
-- ⚡ **[Context.dev](https://link.context.dev/branda)** — brand data (logo, colors, industry), homepage scraping, and styleguide mood
+- ⚡ **[Context.dev](https://link.context.dev/branda)** — brand data, homepage scraping, styleguide palette/typography, and fact-grounded Product extraction with `web.extract`
 - 🤖 **Vercel AI SDK** + **AI Gateway** — `gpt-5.4-mini` for concept picking & copy; `gpt-image-1`, `gpt-image-2`, `grok-imagine-image`, `imagen-4.0`, `seedream-4.5`, and `recraft-v4.1` for the ads (one per ad)
 - 🌍 **Vercel CDN** — briefs and finished ads cached at the edge via `Cache-Control: s-maxage`
 - 🎨 **Tailwind CSS** + **Geist** font
@@ -245,14 +249,36 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
 ## Built using [Context.dev](https://link.context.dev/branda)
 
-Branda gets its Brand metadata, logos, colors, homepage content, and visual styleguide from a single API. Want to build your own brand-aware tool or agent?
+Branda gets its Brand metadata, logos, colors, homepage content, visual styleguide, and fact-grounded Products from a single API. Want to build your own brand-aware tool or agent?
 
 ```ts
 import ContextDev from "context.dev";
+import { zodSchema } from "ai";
+import { z } from "zod";
 
 const client = new ContextDev({ apiKey: process.env.CONTEXT_DEV_API_KEY });
 
 const { brand } = await client.brand.retrieve({ domain: "notion.com" });
+
+const productExtraction = z.object({
+  products: z
+    .array(
+      z.object({
+        name: z.string(),
+        description: z.string(),
+      }),
+    )
+    .min(1)
+    .max(3),
+});
+
+const { data } = await client.web.extract({
+  url: "https://notion.com",
+  schema: await zodSchema(productExtraction).jsonSchema,
+  factCheck: true,
+});
+
+const { products } = productExtraction.parse(data);
 ```
 
 👉 **[Get your free API key →](https://link.context.dev/branda)**

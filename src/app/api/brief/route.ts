@@ -9,12 +9,12 @@ import { normalizeDomain } from "@/lib/net";
 export const maxDuration = 120;
 
 /**
- * GET /api/brief?domain=stripe.com
+ * GET /api/brief?domain=stripe.com&v=3
  *
- * The single entry point: pulls brand data, homepage, and visual mood from
- * Context.dev, then one LLM call picks 6 of the 12 concepts and writes copy.
- * GET + Cache-Control so identical domains are served straight from the
- * Vercel CDN instead of re-burning API credits.
+ * The single entry point: pulls brand data, products, homepage, and styleguide
+ * palette/typography from Context.dev, then one LLM call plans three Company
+ * ads plus one to three Product ads. GET + Cache-Control lets identical
+ * versioned plans reuse the Vercel CDN instead of re-burning API credits.
  */
 const CACHE_OK = "public, s-maxage=3600, stale-while-revalidate=86400";
 const NO_STORE = { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" };
@@ -34,6 +34,8 @@ function failureResponse(failure: AdRunPlanningFailure) {
       return fail("We couldn't find or reach this domain. Double-check the URL and try again.", 502);
     case "brand-unavailable":
       return fail("Couldn't load brand data for that domain. Try another one.", 502);
+    case "products-unavailable":
+      return fail("Couldn't find products to advertise on that site. Try another one.", 502);
     case "internal":
       console.error("[brief] Ad Run planning failed:", failure.cause);
       return fail("We couldn't prepare this ad run. Please try again.", 500);
@@ -43,8 +45,11 @@ function failureResponse(failure: AdRunPlanningFailure) {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   if (
-    [...new Set(url.searchParams.keys())].some((key) => key !== "domain") ||
-    url.searchParams.getAll("domain").length !== 1
+    [...new Set(url.searchParams.keys())].some(
+      (key) => key !== "domain" && key !== "v",
+    ) ||
+    url.searchParams.getAll("domain").length !== 1 ||
+    url.searchParams.getAll("v").length > 1
   ) {
     return fail("Invalid brief request.", 400);
   }

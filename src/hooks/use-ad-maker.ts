@@ -7,7 +7,6 @@ import {
   renderedAdHref,
   type AdBrief,
   type PlannedConcept,
-  type Six,
 } from "@/lib/ad-run";
 import { normalizeDomain } from "@/lib/net";
 
@@ -62,12 +61,12 @@ type ActiveController = {
 
 type GeneratingController = ActiveController & {
   phase: "generating";
-  slots: Six<AdSlot>;
+  slots: readonly AdSlot[];
 };
 
 type DoneController = ActiveController & {
   phase: "done";
-  slots: Six<AdSlot>;
+  slots: readonly AdSlot[];
   downloadAll(): void;
   shareToX(): Promise<void>;
 };
@@ -86,7 +85,7 @@ type InternalState =
       epoch: number;
       submittedDomain: string;
       brief: AdBrief;
-      slots: Six<AdSlot>;
+      slots: readonly AdSlot[];
       settled: boolean;
     };
 
@@ -108,17 +107,40 @@ function extensionFor(blob: Blob): ImageExtension {
 }
 
 function replaceSlot(
-  slots: Six<AdSlot>,
+  slots: readonly AdSlot[],
   index: number,
   next: AdSlot,
-): Six<AdSlot> {
+): readonly AdSlot[] {
   return slots.map((slot, slotIndex) =>
     slotIndex === index ? next : slot,
-  ) as unknown as Six<AdSlot>;
+  );
 }
 
-function allSlotsFinished(slots: Six<AdSlot>): boolean {
+function allSlotsFinished(slots: readonly AdSlot[]): boolean {
   return slots.every((slot) => slot.status !== "loading");
+}
+
+function filenameSegment(value: string): string {
+  return (
+    value
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "ad"
+  );
+}
+
+function adFilename(
+  domain: string,
+  concept: PlannedConcept,
+  index: number,
+  extension: ImageExtension,
+): string {
+  const subject =
+    concept.subject.kind === "product" ? concept.subject.name : "company";
+  return `${domain}-${index + 1}-${filenameSegment(subject)}-${concept.key}.${extension}`;
 }
 
 function responseError(payload: unknown): string {
@@ -291,7 +313,7 @@ export function useAdMaker(): AdMakerController {
           status: "loading" as const,
           concept,
           attempt: 1,
-        })) as unknown as Six<AdSlot>;
+        }));
         attemptsRef.current = plan.concepts.map(() => 1);
         commit({
           stage: "gallery",
@@ -392,7 +414,7 @@ export function useAdMaker(): AdMakerController {
       if (slot?.status !== "done") return;
       triggerDownload(
         slot.url,
-        `${current.submittedDomain}-${slot.concept.key}.${slot.ext}`,
+        adFilename(current.submittedDomain, slot.concept, index, slot.ext),
       );
     },
     [triggerDownload],
@@ -401,12 +423,17 @@ export function useAdMaker(): AdMakerController {
   const downloadAll = useCallback(() => {
     const current = stateRef.current;
     if (current.stage !== "gallery") return;
-    const downloads = current.slots.flatMap((slot) =>
+    const downloads = current.slots.flatMap((slot, index) =>
       slot.status === "done"
         ? [
             {
               url: slot.url,
-              filename: `${current.submittedDomain}-${slot.concept.key}.${slot.ext}`,
+              filename: adFilename(
+                current.submittedDomain,
+                slot.concept,
+                index,
+                slot.ext,
+              ),
             },
           ]
         : [],
