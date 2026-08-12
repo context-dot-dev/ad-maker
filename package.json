@@ -37,7 +37,7 @@
     "ai": "^6.0.193",
     "context.dev": "^2.5.0",
     "geist": "^1.7.2",
-    "next": "^15.5.18",
+    "next": "^16.3.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "server-only": "^0.0.1",
@@ -50,7 +50,7 @@
     "@types/react-dom": "19.0.2",
     "autoprefixer": "^10.4.20",
     "jsdom": "^26.1.0",
-    "postcss": "^8.5.0",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vitest": "^3.2.7"
