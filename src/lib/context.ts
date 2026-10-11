@@ -216,7 +216,7 @@ export async function fetchProducts(
   const res = await client().web.extract(
     {
       url: `https://${domain}`,
-      schema,
+      schema: { ...schema },
       factCheck: true,
       instructions: [
         "Extract one to three distinct products or named services the company explicitly sells or offers.",
