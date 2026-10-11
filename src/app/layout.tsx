@@ -17,15 +17,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={GeistSans.variable}>
       <head>
-        {/* Privacy-friendly analytics by Plausible */}
         <Script
           async
-          src="https://plausible.io/js/pa-G8rQKDkfy9faxwXm28L1e.js"
+          src="https://cdn.databuddy.cc/databuddy.js"
+          data-client-id="feba15e7-014a-4798-b073-1b575360af70"
+          data-track-outgoing-links="true"
+          crossOrigin="anonymous"
           strategy="afterInteractive"
         />
-        <Script id="plausible-init" strategy="afterInteractive">
-          {`window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()`}
-        </Script>
       </head>
       <body className={`${GeistSans.className} antialiased`}>{children}</body>
     </html>

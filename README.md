@@ -210,7 +210,7 @@ The UI and renderer are separable from Context.dev enrichment, so you can reuse 
 
 The included `/api/brief` and `/api/ad` routes invoke billable services and are intentionally callable by the browser. Before exposing your own deployment, add authentication and/or rate limiting appropriate to your audience, set provider spend alerts, and understand the cost of up to four Context.dev calls, one text-model call, and six image-model calls per uncached Ad Run. Successful responses benefit from a compatible shared CDN cache; failures use `no-store`.
 
-The app loads [Plausible](https://plausible.io) (privacy-friendly, cookieless analytics) via a script tag in `src/app/layout.tsx`; forks should swap in their own Plausible script URL or remove the tag. The default UI also requests a Google-hosted font and Google favicon service; privacy-sensitive forks can self-host or remove those requests.
+The app loads [Databuddy](https://www.databuddy.cc) (privacy-friendly, cookieless analytics) via a script tag in `src/app/layout.tsx`; forks should swap in their own Databuddy client ID or remove the tag. The default UI also requests a Google-hosted font and Google favicon service; privacy-sensitive forks can self-host or remove those requests.
 
 ---
 
